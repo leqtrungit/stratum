@@ -1,17 +1,30 @@
-# Task: Fix Hasura Migration Script
+# Task: Debug Missing Hasura Actions
 
 ## Problem
-The `hasura-apply-migrations` service fails with `hasura: command not found`. This is because the `hasura/graphql-engine:v2.44.0.cli-migrations-v3.ubuntu` image might not have `hasura` in the PATH, or it's named differently (e.g., `hasura-cli`).
+The user reports that actions in `hasura/metadata/actions.yaml` do not appear in Hasura after applying metadata and migrations.
+
+## Root Cause
+1. `hasura/metadata/version.yaml` was missing.
+2. `actions.yaml` was a list instead of a map with the `actions:` key.
+3. `actions.graphql` was missing, which is required for SDL definitions in split metadata mode.
+4. `custom_types` were not properly integrated into the standard structure.
 
 ## Plan
-- [x] Identify the correct Hasura CLI binary name/path in the `cli-migrations` image.
-- [x] Update `hasura/apply-migrations.sh` to use the correct binary (`hasura-cli`).
-- [x] Verify the fix by running `docker compose up hasura-apply-migrations`.
-- [x] Refactor metadata to standard Hasura V3 format (split tables, added `version.yaml`).
-- [x] Improve script robustness for empty seed directories.
+- [x] Verify the current metadata status using `hasura metadata apply --dry-run`.
+- [x] Initialize a standard Hasura project for structure comparison (`hasura init`).
+- [x] Reconstruct `hasura/metadata` to follow standard CLI v3 structure.
+- [x] Merge `custom_types` into `actions.yaml` as per standard format.
+- [x] Create `actions.graphql` with full SDL (Mutation + Type definitions).
+- [x] Verify fix with `hasura metadata diff`.
+- [x] Apply metadata successfully.
 
 ## Progress
-- [x] Investigate binary name
-- [x] Apply fix
-- [x] Verify
-- [x] Standardize setup
+- [x] Investigating metadata structure
+- [x] Fixing missing files
+- [x] Verifying actions appearance
+- [x] Successfully applied metadata
+
+## Review
+- Metadata is now in a standard, recognizable format.
+- Actions and Custom Types are visible in Hasura console.
+- SDL is properly tracked in `actions.graphql`.

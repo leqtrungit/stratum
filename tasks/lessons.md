@@ -12,6 +12,9 @@
 - **ESM Modules**: In NestJS 11+ with `nodenext` configuration, local imports MUST include the `.js` extension even if the source file is `.ts`.
 - **Config Null Safety**: Always use `configService.getOrThrow<string>()` for mandatory environment variables to avoid `undefined` types and ensure the app fails-fast on misconfiguration.
 - **Modular Metadata**: Use comment markers (`# MODULE_START` / `# MODULE_END`) within Hasura metadata files. This allows the `install.sh` script to cleanly and programmatically remove optional features if the user opts out.
+- **Hasura CLI v3 Structure**: In CLI v3 split metadata mode, `metadata/version.yaml` is mandatory. The CLI expects specific file names (`actions.yaml`, `databases/databases.yaml`, etc.) to automatically build the metadata.
+- **Actions SDL Requirement**: When defining actions in split mode, Hasura CLI v3 requires an `actions.graphql` file containing the SDL definitions (Mutations/Queries and their custom types). Even if types are defined in `actions.yaml`'s `custom_types` section, they may still be required in the `.graphql` file for validation.
+- **Standard Reference**: If metadata parsing fails or structure is unclear, use `hasura init <tmp_dir>` to verify the latest standard structure expected by the installed CLI version.
 
 ## Workflow Orchestration
 - **Commit Granularity**: Separate changes into logical commits (e.g., Infrastructure, Core API, Feature Module, Docs) to maintain a clean and searchable history.
