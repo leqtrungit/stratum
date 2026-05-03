@@ -3,7 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { HasuraModule } from './hasura/hasura.module.js';
+// # STORAGE_START
 import { StorageModule } from './storage/storage.module.js';
+// # STORAGE_END
 
 @Module({
   imports: [
@@ -11,9 +13,11 @@ import { StorageModule } from './storage/storage.module.js';
       isGlobal: true,
     }),
     HasuraModule,
-    // Only import StorageModule if explicitly enabled
-    ...(process.env.STORAGE_ENABLED === 'true' ? [StorageModule] : []),
+    // # STORAGE_START
+    StorageModule,
+    // # STORAGE_END
   ],
+
   controllers: [AppController],
   providers: [AppService],
 })

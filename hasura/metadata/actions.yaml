@@ -1,4 +1,5 @@
 actions:
+# STORAGE_START
   - name: requestUploadUrl
     definition:
       arguments:
@@ -52,33 +53,37 @@ actions:
     permissions:
       - role: user
     comment: Delete a file from S3 and soft-delete its metadata record
+# STORAGE_END
 custom_types:
-    enums: []
-    input_objects: []
-    objects:
-      - name: UploadUrlOutput
-        fields:
-          - name: uploadUrl
-            type: String!
-          - name: fileKey
-            type: String!
-        description: Returned by requestUploadUrl Action
-      - name: FileOutput
-        fields:
-          - name: id
-            type: uuid!
-          - name: url
-            type: String!
-          - name: size
-            type: Int!
-          - name: mimeType
-            type: String!
-          - name: createdAt
-            type: timestamptz!
-        description: Returned by confirmUpload Action
-      - name: DeleteFileOutput
-        fields:
-          - name: success
-            type: Boolean!
-        description: Returned by deleteFile Action
-    scalars: []
+  enums: []
+  input_objects: []
+  objects:
+# STORAGE_START
+    - name: UploadUrlOutput
+      fields:
+        - name: uploadUrl
+          type: String!
+        - name: fileKey
+          type: String!
+      description: Returned by requestUploadUrl Action
+    - name: FileOutput
+      fields:
+        - name: id
+          type: uuid!
+        - name: url
+          type: String!
+        - name: size
+          type: Int!
+        - name: mimeType
+          type: String!
+        - name: createdAt
+          type: timestamptz!
+      description: Returned by confirmUpload Action
+    - name: DeleteFileOutput
+      fields:
+        - name: success
+          type: Boolean!
+      description: Returned by deleteFile Action
+# STORAGE_END
+  scalars: []
+
