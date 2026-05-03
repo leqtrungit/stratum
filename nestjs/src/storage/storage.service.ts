@@ -13,18 +13,18 @@ export class StorageService implements OnModuleInit {
   private readonly defaultBucket: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.defaultBucket = this.configService.get<string>('GARAGE_DEFAULT_BUCKET', 'uploads');
+    this.defaultBucket = this.configService.get<string>('S3_DEFAULT_BUCKET', 'uploads');
   }
 
   onModuleInit() {
     this.s3Client = new S3Client({
-      region: this.configService.get<string>('GARAGE_REGION', 'garage'),
-      endpoint: this.configService.getOrThrow<string>('GARAGE_ENDPOINT'),
+      region: this.configService.get<string>('S3_REGION', 'us-east-1'),
+      endpoint: this.configService.getOrThrow<string>('S3_ENDPOINT'),
       credentials: {
-        accessKeyId: this.configService.getOrThrow<string>('GARAGE_ACCESS_KEY'),
-        secretAccessKey: this.configService.getOrThrow<string>('GARAGE_SECRET_KEY'),
+        accessKeyId: this.configService.getOrThrow<string>('S3_ACCESS_KEY'),
+        secretAccessKey: this.configService.getOrThrow<string>('S3_SECRET_KEY'),
       },
-      forcePathStyle: true, // Required for Garage/Minio
+      forcePathStyle: true, // Required for path-style S3-compatible endpoints
     });
   }
 
@@ -52,8 +52,8 @@ export class StorageService implements OnModuleInit {
 
   async getPublicUrl(key: string, bucket?: string) {
     const b = bucket || this.defaultBucket;
-    const endpoint = this.configService.getOrThrow<string>('GARAGE_ENDPOINT');
-    // Basic URL construction for Garage path-style access
+    const endpoint = this.configService.getOrThrow<string>('S3_ENDPOINT');
+    // Path-style URL: endpoint/bucket/key
     return `${endpoint}/${b}/${key}`;
   }
 

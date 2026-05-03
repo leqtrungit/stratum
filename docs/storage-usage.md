@@ -1,17 +1,17 @@
-# Storage Usage (Garage S3)
+# Storage Usage (RustFS S3)
 
-> This guide explains how file upload, download, and deletion work in Stratum using the Garage S3 StorageModule.
+> This guide explains how file upload, download, and deletion work in Stratum using the RustFS S3 StorageModule.
 
 ---
 
 ## Overview
 
-Stratum's `StorageModule` wraps [Garage](https://garagehq.deuxfleurs.fr/) — a lightweight, self-hosted, S3-compatible object store. It is an **optional module** enabled during `./install.sh`.
+Stratum's `StorageModule` wraps [RustFS](https://github.com/rustfs/rustfs) — a lightweight, self-hosted, S3-compatible object store written in Rust. It is an **optional module** enabled during `./install.sh`.
 
 **Key design rules:**
-- Clients **never** call Garage S3 directly without a presigned URL
+- Clients **never** call RustFS S3 directly without a presigned URL
 - Clients **never** call NestJS directly — all requests go through **Hasura GraphQL**
-- NestJS acts as an internal **Hasura Action handler** that communicates with Garage S3
+- NestJS acts as an internal **Hasura Action handler** that communicates with RustFS S3
 
 **Upload flow:**
 ```mermaid
@@ -19,7 +19,7 @@ sequenceDiagram
     participant C as Client
     participant H as Hasura
     participant N as NestJS
-    participant G as Garage S3
+    participant G as RustFS S3
 
     C->>H: mutation requestUploadUrl(filename, mimeType)
     H->>N: Action handler
@@ -45,7 +45,7 @@ sequenceDiagram
 
 - StorageModule was enabled during `./install.sh`
 - Stack is running: `docker compose up -d`
-- `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, `GARAGE_ENDPOINT`, `GARAGE_DEFAULT_BUCKET` are set in `.env`
+- `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_ENDPOINT`, `S3_DEFAULT_BUCKET` are set in `.env`
 
 ---
 
@@ -105,7 +105,7 @@ async requestUploadUrl(
   sessionVariables: SessionVariables,
 ) {
   const { uploadUrl, fileKey } = await this.storageService.getPresignedUploadUrl({
-    bucket: input.bucket ?? process.env.GARAGE_DEFAULT_BUCKET,
+    bucket: input.bucket ?? process.env.S3_DEFAULT_BUCKET,
     filename: input.filename,
     mimeType: input.mimeType,
     expiresIn: 300,
@@ -136,7 +136,7 @@ async confirmUpload(
       url: fileUrl,
       size: input.size,
       mime_type: input.mimeType,
-      bucket: process.env.GARAGE_DEFAULT_BUCKET,
+      bucket: process.env.S3_DEFAULT_BUCKET,
       created_by: userId,  // audit field — from session, not client
       updated_by: userId,
     }
@@ -164,7 +164,7 @@ async deleteFile(
 
   if (!file) throw new Error('File not found');
 
-  // Delete from Garage S3
+  // Delete from RustFS S3
   await this.storageService.deleteFile(file.key, file.bucket);
 
   // Soft-delete the metadata record
@@ -206,7 +206,7 @@ The `files` table stores metadata for every uploaded object. It follows the stan
 
 ## StorageService API
 
-`StorageService` (`nestjs/src/storage/storage.service.ts`) wraps the Garage S3 SDK:
+`StorageService` (`nestjs/src/storage/storage.service.ts`) wraps the RustFS S3 SDK:
 
 ```typescript
 // Generate a presigned URL for client upload
@@ -229,9 +229,9 @@ deleteFile(key: string, bucket?: string): Promise<void>
 
 ---
 
-## Garage WebUI
+## RustFS Web Console
 
-Access the Garage management UI at `http://localhost:3909` (dev mode only).
+Access the RustFS management console at `http://localhost:9001` (dev mode only).
 
 Use it to:
 - View and create buckets
@@ -242,10 +242,10 @@ Use it to:
 
 ## Disabling Storage Module
 
-If you chose not to enable storage during `./install.sh`, the `StorageModule` is not imported in `app.module.ts` and Garage containers are not included in `docker-compose.yml`.
+If you chose not to enable storage during `./install.sh`, the `StorageModule` is not imported in `app.module.ts` and RustFS containers are not included in `docker-compose.yml`.
 
 To add it later, re-run `./install.sh` and select storage, or manually:
-1. Add Garage service to `docker-compose.yml` from `docker-compose.storage.yml`
+1. Add RustFS service to `docker-compose.yml` from `docker-compose.storage.yml`
 2. Add storage environment variables to `.env`
 3. Import `StorageModule` in `app.module.ts`
 

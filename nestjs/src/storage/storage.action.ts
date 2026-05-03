@@ -50,7 +50,7 @@ export class StorageAction {
         url,
         size: input.size,
         mime_type: input.mimeType,
-        bucket: process.env.GARAGE_DEFAULT_BUCKET,
+        bucket: process.env.S3_DEFAULT_BUCKET,
         created_by: userId,
         updated_by: userId,
       },

@@ -21,17 +21,17 @@ read -p "Enter project name [stratum]: " PROJECT_NAME
 PROJECT_NAME=${PROJECT_NAME:-stratum}
 
 # 2. Enable Storage
-read -p "Enable Garage S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
+read -p "Enable RustFS S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
 ENABLE_STORAGE=${ENABLE_STORAGE:-n}
 
 # 3. Generate Secrets
 echo -e "${YELLOW}Generating random secrets...${NC}"
-ADMIN_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-JWT_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-EVENT_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-DB_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
-STORAGE_ACCESS_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 20 | head -n 1)
-STORAGE_SECRET_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 40 | head -n 1)
+ADMIN_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
+JWT_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
+EVENT_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
+DB_PASSWORD=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 16 | head -n 1)
+STORAGE_ACCESS_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 20 | head -n 1)
+STORAGE_SECRET_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 40 | head -n 1)
 
 # 4. Create .env
 echo -e "${YELLOW}Creating .env file...${NC}"
@@ -50,14 +50,14 @@ sed -i.bak "s/^HASURA_EVENT_SECRET=.*/HASURA_EVENT_SECRET=$EVENT_SECRET/" .env
 
 if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
     sed -i.bak "s/^STORAGE_ENABLED=.*/STORAGE_ENABLED=true/" .env
-    sed -i.bak "s/^GARAGE_ACCESS_KEY=.*/GARAGE_ACCESS_KEY=$STORAGE_ACCESS_KEY/" .env
-    sed -i.bak "s/^GARAGE_SECRET_KEY=.*/GARAGE_SECRET_KEY=$STORAGE_SECRET_KEY/" .env
+    sed -i.bak "s/^S3_ACCESS_KEY=.*/S3_ACCESS_KEY=$STORAGE_ACCESS_KEY/" .env
+    sed -i.bak "s/^S3_SECRET_KEY=.*/S3_SECRET_KEY=$STORAGE_SECRET_KEY/" .env
     
     # 5. Generate docker-compose.yml (Merged)
     echo -e "${YELLOW}Generating merged docker-compose.yml with storage...${NC}"
-    cat docker-compose.base.yml > docker-compose.yml
-    echo -e "${BLUE}Merging storage services into docker-compose.yml...${NC}"
-    tail -n +2 docker-compose.storage.yml >> docker-compose.yml
+    # Use docker compose config to merge files properly
+    # We pass the newly created .env to ensure required variables are present
+    docker compose --env-file .env -f docker-compose.base.yml -f docker-compose.storage.yml config > docker-compose.yml
 else
     cp docker-compose.base.yml docker-compose.yml
     
@@ -85,6 +85,6 @@ echo -e "Next steps:"
 echo -e "  1. Run: ${YELLOW}docker compose up -d${NC}"
 echo -e "  2. Access Hasura: ${YELLOW}http://localhost:8080${NC}"
 if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
-echo -e "  3. Access Garage UI: ${YELLOW}http://localhost:3909${NC}"
+echo -e "  3. Access RustFS Console: ${YELLOW}http://localhost:9001${NC}"
 fi
 echo -e ""
