@@ -68,6 +68,28 @@ services:
       start_period: 20s
 
   # ---------------------------------------------------------------------------
+  # Hasura Apply Migrations — Runs migrations and metadata
+  # ---------------------------------------------------------------------------
+  hasura-apply-migrations:
+    image: hasura/graphql-engine:v2.44.0.cli-migrations-v3.ubuntu
+    container_name: ${PROJECT_NAME:-stratum}_hasura_apply_migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+      hasura:
+        condition: service_healthy
+    restart: "no"
+    volumes:
+      - ./hasura:/hasura
+    networks:
+      - stratum
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: ${HASURA_GRAPHQL_DATABASE_URL:?HASURA_GRAPHQL_DATABASE_URL is required}
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:?HASURA_GRAPHQL_ADMIN_SECRET is required}
+      HASURA_GRAPHQL_ENDPOINT: http://hasura:8080
+    command: ["/bin/sh", "-c", "chmod +x /hasura/apply-migrations.sh && /hasura/apply-migrations.sh $${ENVIRONMENT:-dev}"]
+
+  # ---------------------------------------------------------------------------
   # NestJS — Internal Business Logic Layer
   # Never exposed publicly. Only called by Hasura via Actions / Event Triggers.
   # ---------------------------------------------------------------------------
