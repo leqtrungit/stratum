@@ -16,3 +16,7 @@
 ## Workflow Orchestration
 - **Commit Granularity**: Separate changes into logical commits (e.g., Infrastructure, Core API, Feature Module, Docs) to maintain a clean and searchable history.
 - **Plan First**: Always update `tasks/todo.md` and check-in with the user before starting major implementation phases.
+
+## NestJS & Docker
+- **Build Structure**: Ensure `tsconfig.build.json` excludes any `.ts` files in the root (like `codegen.ts` or `eslint.config.ts`) to prevent `tsc` from creating a nested `dist/src` folder structure. This ensures the Docker entrypoint `dist/main.js` remains correct.
+- **Node.js Version**: Use **Node.js 24 (Active LTS)** for NestJS 11 projects in 2026. It provides the best balance of stability (LTS status since Oct 2025) and compatibility with modern SDKs (like AWS SDK v3 which requires Node >= 22).

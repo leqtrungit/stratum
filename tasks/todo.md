@@ -46,8 +46,8 @@
 
 ### 6. Verification
 - [ ] `docker compose up -d` → all services healthy
-- [ ] Hasura healthz returns 200
-- [ ] NestJS container starts without errors
+- [x] Hasura healthz returns 200
+- [x] NestJS container starts without errors (Fixed MODULE_NOT_FOUND error by excluding codegen.ts from build)
 - [ ] `requestUploadUrl` Action returns a presigned URL
 - [ ] Full upload flow: requestUploadUrl → PUT Garage → confirmUpload → record in `files` table
 
@@ -73,6 +73,24 @@
 
 ---
 
+## Automated Testing Implementation (docs/test-use-cases.md)
+
+### 1. Setup & Installation (CLI Level)
+- [ ] Create `tests/system` directory with testing infrastructure
+- [ ] Implement Case 1.1: Core Only Setup (run install.sh, verify files)
+- [ ] Implement Case 1.2: Full Stack Setup (run install.sh, verify files)
+- [ ] Implement Case 1.3: Secret Generation (verify uniqueness)
+
+### 2. Infrastructure & Connectivity
+- [ ] Implement Case 2.1: Service Health (Hasura, NestJS, Postgres, Garage)
+- [ ] Implement Case 2.2: Internal Networking (Hasura -> NestJS, NestJS -> Hasura, NestJS -> Garage)
+
+---
+
 ## Review
 
-> Fill in after each phase completes.
+### 2026-05-03: Fixed NestJS MODULE_NOT_FOUND error
+- **Issue**: NestJS container failed to start because `dist/main.js` was missing.
+- **Cause**: `codegen.ts` in the root was being compiled, causing `tsc` to create a `dist/src` subfolder.
+- **Fix**: Excluded `codegen.ts` from `tsconfig.build.json`.
+- **Status**: Verified. Container is Up and Healthy.
