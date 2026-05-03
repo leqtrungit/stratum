@@ -68,14 +68,15 @@ else
     # This works on most Unix systems including macOS
     sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/actions.yaml
     sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/custom_types.yaml
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/databases/databases.yaml
+    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/databases/default/tables/tables.yaml
     
-    # Delete storage migration
+    # Delete storage migration and table metadata
     rm -rf hasura/migrations/default/*_files_table
+    rm -f hasura/metadata/databases/default/tables/public_files.yaml
 fi
 
 # Clean up .bak files from sed
-rm -f .env.bak hasura/metadata/*.bak hasura/metadata/databases/*.bak
+find . -name "*.bak" -delete
 
 echo -e "${GREEN}=============================================================================${NC}"
 echo -e "${GREEN}  Setup Complete!${NC}"

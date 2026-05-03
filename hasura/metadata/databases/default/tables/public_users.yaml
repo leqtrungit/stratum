@@ -1,0 +1,17 @@
+table:
+  schema: public
+  name: users
+configuration:
+  custom_name: users
+  custom_root_fields: {}
+  custom_column_names: {}
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - email
+        - created_at
+      filter:
+        id:
+          _eq: X-Hasura-User-Id

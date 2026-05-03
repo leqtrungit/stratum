@@ -22,16 +22,21 @@ echo "Hasura is ready!"
 
 # Apply migrations
 echo "Applying migrations..."
-hasura migrate apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+hasura-cli migrate apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
 
 # Apply metadata
 echo "Applying metadata..."
-hasura metadata apply --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+hasura-cli metadata apply --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
 
 # Apply seeds only for development
 if [ "$ENVIRONMENT" = "dev" ]; then
-    echo "Applying seeds (development only)..."
-    hasura seeds apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+    echo "Checking for seeds (development only)..."
+    if [ -d "/hasura/seeds/default" ] && [ "$(ls -A /hasura/seeds/default/*.sql 2>/dev/null)" ]; then
+        echo "Applying seeds..."
+        hasura-cli seeds apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+    else
+        echo "No seeds found in /hasura/seeds/default, skipping."
+    fi
 else
     echo "Skipping seeds for production environment"
 fi
