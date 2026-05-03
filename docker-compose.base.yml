@@ -56,6 +56,7 @@ services:
       HASURA_GRAPHQL_ENABLE_CONSOLE: ${HASURA_GRAPHQL_ENABLE_CONSOLE:-true}
       HASURA_GRAPHQL_DEV_MODE: ${HASURA_GRAPHQL_DEV_MODE:-true}
       HASURA_GRAPHQL_LOG_LEVEL: ${HASURA_GRAPHQL_LOG_LEVEL:-info}
+      HASURA_EVENT_SECRET: ${HASURA_EVENT_SECRET}
       # NestJS webhook endpoint — Hasura calls this for Actions & Event Triggers
       NESTJS_WEBHOOK_URL: http://nestjs:3000
     networks:
