@@ -1,0 +1,93 @@
+version: 3
+sources:
+  - name: default
+    kind: postgres
+    tables:
+      - table:
+          schema: public
+          name: users
+        configuration:
+          custom_name: users
+          custom_root_fields: {}
+          custom_column_names: {}
+        select_permissions:
+          - role: user
+            permission:
+              columns:
+                - id
+                - email
+                - created_at
+              filter:
+                id:
+                  _eq: X-Hasura-User-Id
+        
+# STORAGE_START
+      - table:
+          schema: public
+          name: files
+        configuration:
+          custom_name: files
+          custom_root_fields: {}
+          custom_column_names:
+            mime_type: mimeType
+            created_at: createdAt
+            created_by: createdBy
+            updated_at: updatedAt
+            updated_by: updatedBy
+            deleted_at: deletedAt
+            deleted_by: deletedBy
+        object_relationships:
+          - name: creator
+            using:
+              foreign_key_constraint_on: created_by
+        select_permissions:
+          - role: user
+            permission:
+              columns:
+                - id
+                - key
+                - url
+                - size
+                - mime_type
+                - bucket
+                - created_at
+                - created_by
+              filter:
+                _and:
+                  - created_by:
+                      _eq: X-Hasura-User-Id
+                  - deleted_at:
+                      _is_null: true
+        insert_permissions:
+          - role: user
+            permission:
+              columns:
+                - key
+                - url
+                - size
+                - mime_type
+                - bucket
+              check: {}
+              set:
+                created_by: x-hasura-user-id
+                updated_by: x-hasura-user-id
+        update_permissions:
+          - role: user
+            permission:
+              columns:
+                - deleted_at
+              filter:
+                _and:
+                  - created_by:
+                      _eq: X-Hasura-User-Id
+                  - deleted_at:
+                      _is_null: true
+              set:
+                updated_by: x-hasura-user-id
+# STORAGE_END
+    configuration:
+      connection_info:
+        use_prepared_statements: false
+        database_url:
+          from_env: HASURA_GRAPHQL_DATABASE_URL
+        isolation_level: read-committed

@@ -1,0 +1,57 @@
+# STORAGE_START
+- name: requestUploadUrl
+  definition:
+    arguments:
+      - name: filename
+        type: String!
+      - name: mimeType
+        type: String!
+      - name: bucket
+        type: String
+    kind: synchronous
+    handler: '{{NESTJS_WEBHOOK_URL}}/actions/request-upload-url'
+    forward_client_headers: true
+    headers:
+      - name: x-hasura-event-secret
+        value_from_env: HASURA_EVENT_SECRET
+    output_type: UploadUrlOutput
+  permissions:
+    - role: user
+  comment: Request a presigned S3 upload URL from NestJS StorageService
+
+- name: confirmUpload
+  definition:
+    arguments:
+      - name: fileKey
+        type: String!
+      - name: size
+        type: Int!
+      - name: mimeType
+        type: String!
+    kind: synchronous
+    handler: '{{NESTJS_WEBHOOK_URL}}/actions/confirm-upload'
+    forward_client_headers: true
+    headers:
+      - name: x-hasura-event-secret
+        value_from_env: HASURA_EVENT_SECRET
+    output_type: FileOutput
+  permissions:
+    - role: user
+  comment: Confirm a direct upload to S3 and persist file metadata to PostgreSQL
+
+- name: deleteFile
+  definition:
+    arguments:
+      - name: fileId
+        type: uuid!
+    kind: synchronous
+    handler: '{{NESTJS_WEBHOOK_URL}}/actions/delete-file'
+    forward_client_headers: true
+    headers:
+      - name: x-hasura-event-secret
+        value_from_env: HASURA_EVENT_SECRET
+    output_type: DeleteFileOutput
+  permissions:
+    - role: user
+  comment: Delete a file from S3 and soft-delete its metadata record
+# STORAGE_END
