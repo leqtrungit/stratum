@@ -1,0 +1,2 @@
+DROP FUNCTION IF EXISTS public.set_updated_at CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;

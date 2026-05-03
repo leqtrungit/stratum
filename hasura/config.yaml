@@ -1,0 +1,9 @@
+version: 3
+endpoint: http://localhost:8080
+admin_secret: '{{HASURA_GRAPHQL_ADMIN_SECRET}}'
+metadata_directory: ./metadata
+migrations_directory: ./migrations
+seeds_directory: ./seeds
+actions:
+  kind: synchronous
+  handler_webhook_baseurl: http://nestjs:3000
