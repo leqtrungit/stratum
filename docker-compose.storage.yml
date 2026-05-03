@@ -1,0 +1,54 @@
+version: "3.9"
+
+# =============================================================================
+# Stratum — Storage Overlay (Garage S3)
+# Template file. Merged into docker-compose.yml by ./install.sh when
+# the user selects storage during setup.
+# =============================================================================
+
+volumes:
+  garage_data:
+  garage_meta:
+
+services:
+  # ---------------------------------------------------------------------------
+  # Garage S3 — Lightweight Self-Hosted Object Storage
+  # Internal only: NestJS calls it via presigned URLs; clients upload directly
+  # to presigned URLs, never to Garage's raw API.
+  # ---------------------------------------------------------------------------
+  garage:
+    image: dxflrs/garage:v1.0.1
+    container_name: ${PROJECT_NAME:-stratum}_garage
+    restart: unless-stopped
+    ports:
+      - "3902:3900"   # S3 API — internal, not publicly reachable in production
+    volumes:
+      - garage_data:/var/lib/garage/data
+      - garage_meta:/var/lib/garage/meta
+      - ./garage/config/garage.toml:/etc/garage.toml:ro
+    networks:
+      - stratum
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3900/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Garage Web UI — Browser-based bucket management
+  # Dev mode only. Do not expose in production.
+  # ---------------------------------------------------------------------------
+  garage-ui:
+    image: ghcr.io/garagehq/garage-admin-ui:latest
+    container_name: ${PROJECT_NAME:-stratum}_garage_ui
+    restart: unless-stopped
+    depends_on:
+      - garage
+    ports:
+      - "3909:80"
+    environment:
+      GARAGE_ADMIN_API_URL: http://garage:3903
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ACCESS_KEY:-}
+    networks:
+      - stratum

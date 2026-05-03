@@ -1,0 +1,37 @@
+# Stratum — Git Ignore
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node / NestJS
+node_modules/
+nestjs/node_modules/
+nestjs/dist/
+nestjs/.pnpm-store/
+
+# Docker generated
+docker-compose.yml
+
+# Hasura CLI cache
+hasura/.hasura/
+hasura/metadata/version.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
