@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "hasura-graphql-engine": {
+      "source": "smithery.ai",
+      "sourceType": "well-known",
+      "computedHash": "2e0eb0ae7521a37769534e210a7accab59c5d67cd63fe6f726540b90571bf174"
+    }
+  }
+}
