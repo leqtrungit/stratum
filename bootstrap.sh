@@ -59,7 +59,7 @@ tar -xzf "$TMP_DIR/template.tar.gz" -C "$TMP_DIR/extracted" --strip-components=1
 echo -e "${YELLOW}Initializing clean project structure in: $(pwd)${NC}"
 
 # Define what to include in the final project
-CORE_FOLDERS=("nestjs" "hasura")
+CORE_FOLDERS=("nestjs" "hasura" ".template")
 CORE_FILES=("docker-compose.base.yml" "docker-compose.storage.yml" ".env.example" "Makefile" "README.md")
 
 for folder in "${CORE_FOLDERS[@]}"; do
@@ -104,6 +104,10 @@ if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
     sed -i.bak "s|^S3_ACCESS_KEY=.*|S3_ACCESS_KEY=$STORAGE_ACCESS_KEY|" .env
     sed -i.bak "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=$STORAGE_SECRET_KEY|" .env
     
+    # Apply File Overlay for Storage
+    echo -e "${YELLOW}Applying Storage Module overlay...${NC}"
+    cp -R .template/storage/* ./
+    
     # Merge docker-compose
     if command -v docker &> /dev/null; then
         docker compose --env-file .env -f docker-compose.base.yml -f docker-compose.storage.yml config > docker-compose.yml
@@ -114,24 +118,17 @@ if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
 else
     cp docker-compose.base.yml docker-compose.yml
     
-    # Cleanup Storage metadata from Hasura
-    echo -e "${YELLOW}Removing storage-related components...${NC}"
-    
-    # 1. Clean Hasura Metadata
-    sed -i.bak '/STORAGE_START/,/STORAGE_END/d' hasura/metadata/actions.yaml || true
-    sed -i.bak '/STORAGE_START/,/STORAGE_END/d' hasura/metadata/databases/default/tables/tables.yaml || true
+    # Cleanup Storage components (not needed in minimal core)
+    echo -e "${YELLOW}Cleaning up optional storage components...${NC}"
     rm -rf hasura/migrations/default/*_files_table || true
     rm -f hasura/metadata/databases/default/tables/public_files.yaml || true
-
-    # 2. Clean NestJS Code
-    sed -i.bak '/STORAGE_START/,/STORAGE_END/d' nestjs/src/app.module.ts || true
     rm -rf nestjs/src/storage || true
 fi
 
-# Cleanup all markers (even if storage is enabled, we remove the comments)
-echo -e "${YELLOW}Finalizing files...${NC}"
-grep -rl "STORAGE_START" . --exclude="bootstrap.sh" | xargs sed -i.bak '/STORAGE_START/d' || true
-grep -rl "STORAGE_END" . --exclude="bootstrap.sh" | xargs sed -i.bak '/STORAGE_END/d' || true
+# Cleanup
+rm -rf .template # Remove template source from final project
+echo -e "${YELLOW}Finalizing project...${NC}"
+
 
 
 # 8. Cleanup and Finalize
