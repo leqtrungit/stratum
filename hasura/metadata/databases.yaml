@@ -1,6 +1,6 @@
 - name: default
   kind: postgres
-  tables: !include default/tables/tables.yaml
+  tables: !include databases/default/tables/tables.yaml
   configuration:
     connection_info:
       use_prepared_statements: false
