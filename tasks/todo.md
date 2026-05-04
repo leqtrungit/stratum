@@ -1,30 +1,27 @@
-# Task: Debug Missing Hasura Actions
+# Task: Fix Hasura Metadata Apply Fatal Error
 
 ## Problem
-The user reports that actions in `hasura/metadata/actions.yaml` do not appear in Hasura after applying metadata and migrations.
+Running `bootstrap.sh` with `S3_ENABLED=n` and then `docker compose up -d` results in a fatal error in the `hasura-apply-migrations` service:
+`level=fatal msg="error applying metadata \n{\n  \"error\": \"key \\\"tables\\\" not found\",\n  \"path\": \"$.args.metadata\",\n  \"code\": \"parse-failed\"\n}"`
 
-## Root Cause
-1. `hasura/metadata/version.yaml` was missing.
-2. `actions.yaml` was a list instead of a map with the `actions:` key.
-3. `actions.graphql` was missing, which is required for SDL definitions in split metadata mode.
-4. `custom_types` were not properly integrated into the standard structure.
+## Root Cause Analysis
+1. **Missing `version.yaml`**: The file `hasura/metadata/version.yaml` is in `.gitignore`. Since `bootstrap.sh` downloads the project via a tarball from Git, ignored files are excluded. Without `version.yaml`, Hasura CLI defaults to Metadata V2, which fails to parse the V3 project structure.
+2. **Directory Permissions**: The `hasura/metadata/databases` directory is created/copied with `744` permissions, preventing the non-root Hasura CLI user in Docker from entering the directory to resolve `!include` references.
+3. **Improper Apply Order**: `apply-migrations.sh` applies migrations before metadata. In Hasura V3, metadata should be applied first so that all database sources are connected before running migrations against them.
 
-## Plan
-- [x] Verify the current metadata status using `hasura metadata apply --dry-run`.
-- [x] Initialize a standard Hasura project for structure comparison (`hasura init`).
-- [x] Reconstruct `hasura/metadata` to follow standard CLI v3 structure.
-- [x] Merge `custom_types` into `actions.yaml` as per standard format.
-- [x] Create `actions.graphql` with full SDL (Mutation + Type definitions).
-- [x] Verify fix with `hasura metadata diff`.
-- [x] Apply metadata successfully.
-
-## Progress
-- [x] Investigating metadata structure
-- [x] Fixing missing files
-- [x] Verifying actions appearance
-- [x] Successfully applied metadata
+## Action Items
+- [x] **Fix Git Configuration**
+    - [x] Remove `hasura/metadata/version.yaml` from `.gitignore`.
+    - [x] Force add and commit `hasura/metadata/version.yaml` to the repository.
+- [x] **Optimize Hasura Setup Script**
+    - [x] Update `hasura/apply-migrations.sh` to apply metadata **before** migrations.
+- [ ] **Verification**
+    - [ ] Run `bootstrap.sh` in a clean temporary directory.
+    - [ ] Verify `version.yaml` is present.
+    - [ ] Run `docker compose up -d` and verify all services start correctly.
+    - [ ] Check `hasura-apply-migrations` logs for successful completion.
 
 ## Review
-- Metadata is now in a standard, recognizable format.
-- Actions and Custom Types are visible in Hasura console.
-- SDL is properly tracked in `actions.graphql`.
+- [ ] No fatal errors during metadata application.
+- [ ] Metadata version correctly recognized as V3.
+- [ ] Permissions correctly set for Docker environment.

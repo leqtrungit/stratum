@@ -16,7 +16,6 @@ docker-compose.yml
 
 # Hasura CLI cache
 hasura/.hasura/
-hasura/metadata/version.yaml
 
 # OS
 .DS_Store

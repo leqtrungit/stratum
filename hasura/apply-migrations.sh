@@ -20,13 +20,14 @@ done
 
 echo "Hasura is ready!"
 
-# Apply migrations
-echo "Applying migrations..."
-hasura-cli migrate apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
 
 # Apply metadata
 echo "Applying metadata..."
 hasura-cli metadata apply --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+
+# Apply migrations
+echo "Applying migrations..."
+hasura-cli migrate apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
 
 # Apply seeds only for development
 if [ "$ENVIRONMENT" = "dev" ]; then
