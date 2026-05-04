@@ -8,6 +8,7 @@ Running `bootstrap.sh` with `S3_ENABLED=n` and then `docker compose up -d` resul
 1. **Missing `version.yaml`**: The file `hasura/metadata/version.yaml` is in `.gitignore`. Since `bootstrap.sh` downloads the project via a tarball from Git, ignored files are excluded. Without `version.yaml`, Hasura CLI defaults to Metadata V2, which fails to parse the V3 project structure.
 2. **Directory Permissions**: The `hasura/metadata/databases` directory is created/copied with `744` permissions, preventing the non-root Hasura CLI user in Docker from entering the directory to resolve `!include` references.
 3. **Improper Apply Order**: `apply-migrations.sh` applies migrations before metadata. In Hasura V3, metadata should be applied first so that all database sources are connected before running migrations against them.
+4. **Incorrect Metadata Structure**: `databases.yaml` was located in `hasura/metadata/` instead of `hasura/metadata/databases/`. In V3, the CLI expects the databases definition to be inside the `databases/` directory.
 
 ## Action Items
 - [x] **Fix Git Configuration**
