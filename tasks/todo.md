@@ -15,11 +15,11 @@ Running `bootstrap.sh` with `S3_ENABLED=n` and then `docker compose up -d` resul
     - [x] Force add and commit `hasura/metadata/version.yaml` to the repository.
 - [x] **Optimize Hasura Setup Script**
     - [x] Update `hasura/apply-migrations.sh` to apply metadata **before** migrations.
-- [ ] **Verification**
-    - [ ] Run `bootstrap.sh` in a clean temporary directory.
-    - [ ] Verify `version.yaml` is present.
-    - [ ] Run `docker compose up -d` and verify all services start correctly.
-    - [ ] Check `hasura-apply-migrations` logs for successful completion.
+- [x] **Verification**
+    - [x] Run `bootstrap.sh` in a clean temporary directory.
+    - [x] Verify `version.yaml` is present.
+    - [x] Run `docker compose up -d` and verify all services start correctly.
+    - [x] Check `hasura-apply-migrations` logs for successful completion.
 
 ## Review
 - [ ] No fatal errors during metadata application.

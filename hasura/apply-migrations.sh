@@ -21,6 +21,9 @@ done
 echo "Hasura is ready!"
 
 
+# Ensure metadata is readable (fixes potential permission issues from host mount)
+chmod -R 755 /hasura/metadata
+
 # Apply metadata
 echo "Applying metadata..."
 hasura-cli metadata apply --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura

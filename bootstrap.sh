@@ -125,6 +125,10 @@ else
     rm -rf nestjs/src/storage || true
 fi
 
+# Ensure Hasura metadata has correct permissions for Docker
+echo -e "${YELLOW}Setting metadata permissions...${NC}"
+chmod -R 755 hasura/metadata
+
 # Cleanup
 rm -rf .template # Remove template source from final project
 echo -e "${YELLOW}Finalizing project...${NC}"
