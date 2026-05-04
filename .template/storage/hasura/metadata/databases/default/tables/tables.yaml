@@ -1,2 +1,2 @@
-- "!include public_users.yaml"
-- "!include public_files.yaml"
+- !include public_users.yaml
+- !include public_files.yaml
