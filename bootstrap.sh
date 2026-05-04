@@ -122,6 +122,7 @@ else
     echo -e "${YELLOW}Cleaning up optional storage components...${NC}"
     rm -rf hasura/migrations/default/*_files_table || true
     rm -f hasura/metadata/databases/default/tables/public_files.yaml || true
+    rm -f hasura/metadata/actions.graphql || true
     rm -rf nestjs/src/storage || true
 fi
 

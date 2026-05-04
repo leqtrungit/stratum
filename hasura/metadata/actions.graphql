@@ -1,32 +1,3 @@
 type Mutation {
-  confirmUpload(
-    fileKey: String!
-    mimeType: String!
-    size: Int!
-  ): FileOutput
-  deleteFile(
-    fileId: uuid!
-  ): DeleteFileOutput
-  requestUploadUrl(
-    bucket: String
-    filename: String!
-    mimeType: String!
-  ): UploadUrlOutput
-}
-
-type UploadUrlOutput {
-  fileKey: String!
-  uploadUrl: String!
-}
-
-type FileOutput {
-  createdAt: timestamptz!
-  id: uuid!
-  mimeType: String!
-  size: Int!
-  url: String!
-}
-
-type DeleteFileOutput {
-  success: Boolean!
+  # Add your custom mutations here
 }

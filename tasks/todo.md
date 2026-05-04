@@ -9,6 +9,7 @@ Running `bootstrap.sh` with `S3_ENABLED=n` and then `docker compose up -d` resul
 2. **Directory Permissions**: The `hasura/metadata/databases` directory is created/copied with `744` permissions, preventing the non-root Hasura CLI user in Docker from entering the directory to resolve `!include` references.
 3. **Improper Apply Order**: `apply-migrations.sh` applies migrations before metadata. In Hasura V3, metadata should be applied first so that all database sources are connected before running migrations against them.
 4. **Incorrect Metadata Structure**: `databases.yaml` was located in `hasura/metadata/` instead of `hasura/metadata/databases/`. In V3, the CLI expects the databases definition to be inside the `databases/` directory.
+5. **Orphaned Action Definitions**: `actions.graphql` still contained storage action definitions when S3 was disabled, causing a validation error because the corresponding actions were missing from `actions.yaml`.
 
 ## Action Items
 - [x] **Fix Git Configuration**
