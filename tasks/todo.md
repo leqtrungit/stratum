@@ -1,29 +1,12 @@
-# Task: Fix Hasura Metadata Apply Fatal Error
+# Backlog
 
-## Problem
-Running `bootstrap.sh` with `S3_ENABLED=n` and then `docker compose up -d` results in a fatal error in the `hasura-apply-migrations` service:
-`level=fatal msg="error applying metadata \n{\n  \"error\": \"key \\\"tables\\\" not found\",\n  \"path\": \"$.args.metadata\",\n  \"code\": \"parse-failed\"\n}"`
+## Code Fixes
+- [ ] M2: Register storage actions into `hasura/metadata/actions.yaml` + `actions.graphql` (currently empty — NestJS handlers exist but Hasura has no action definitions)
+- [ ] M3: Fix `nestjs/codegen.ts` hardcoded `localhost:8080` → read from env `HASURA_GRAPHQL_ENDPOINT`
 
-## Root Cause Analysis
-1. **Missing `version.yaml`**: The file `hasura/metadata/version.yaml` is in `.gitignore`. Since `bootstrap.sh` downloads the project via a tarball from Git, ignored files are excluded. Without `version.yaml`, Hasura CLI defaults to Metadata V2, which fails to parse the V3 project structure.
-2. **Directory Permissions**: The `hasura/metadata/databases` directory is created/copied with `744` permissions, preventing the non-root Hasura CLI user in Docker from entering the directory to resolve `!include` references.
-3. **Improper Apply Order**: `apply-migrations.sh` applies migrations before metadata. In Hasura V3, metadata should be applied first so that all database sources are connected before running migrations against them.
-4. **Incorrect Metadata Structure**: `databases.yaml` was located in `hasura/metadata/` instead of `hasura/metadata/databases/`. In V3, the CLI expects the databases definition to be inside the `databases/` directory.
-5. **Orphaned Action Definitions**: `actions.graphql` still contained storage action definitions when S3 was disabled, causing a validation error because the corresponding actions were missing from `actions.yaml`.
-
-## Action Items
-- [x] **Fix Git Configuration**
-    - [x] Remove `hasura/metadata/version.yaml` from `.gitignore`.
-    - [x] Force add and commit `hasura/metadata/version.yaml` to the repository.
-- [x] **Optimize Hasura Setup Script**
-    - [x] Update `hasura/apply-migrations.sh` to apply metadata **before** migrations.
-- [x] **Verification**
-    - [x] Run `bootstrap.sh` in a clean temporary directory.
-    - [x] Verify `version.yaml` is present.
-    - [x] Run `docker compose up -d` and verify all services start correctly.
-    - [x] Check `hasura-apply-migrations` logs for successful completion.
-
-## Review
-- [ ] No fatal errors during metadata application.
-- [ ] Metadata version correctly recognized as V3.
-- [ ] Permissions correctly set for Docker environment.
+## Docs To Write
+- [ ] W1: `docs/adding-feature.md` — end-to-end guide: migration → permissions → NestJS handler → Hasura action → test
+- [ ] W2: Add Event Trigger setup section to `docs/adding-resolvers.md` (Console setup, local test, debug)
+- [ ] W3: Add Action test workflow to `docs/adding-resolvers.md` (how to call from GraphQL client, how to debug)
+- [ ] W4: `docs/authentication.md` — JWT claims structure, session variables flow, login pattern
+- [ ] W5: Document `HasuraWebhookGuard` scope — which handlers need it and why

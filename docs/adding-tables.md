@@ -27,7 +27,7 @@ Every table **must** have these 6 fields unless it qualifies as an exception:
 |---|---|---|
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT NOW()` | Timestamp when the record was created |
 | `created_by` | `UUID REFERENCES public.users(id)` | User who created the record |
-| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT NOW()` | Timestamp of the last update (auto-updated via trigger) |
+| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT NOW()` | Timestamp of the last update (auto-set via Hasura Column Preset `now()` on UPDATE) |
 | `updated_by` | `UUID REFERENCES public.users(id)` | User who last updated the record |
 | `deleted_at` | `TIMESTAMPTZ` | Soft-delete timestamp; `NULL` means the record is active |
 | `deleted_by` | `UUID REFERENCES public.users(id)` | User who soft-deleted the record |

@@ -1,17 +1,17 @@
-# Storage Usage (RustFS S3)
+# Storage Usage (S3-compatible)
 
-> This guide explains how file upload, download, and deletion work in Stratum using the RustFS S3 StorageModule.
+> This guide explains how file upload, download, and deletion work in Stratum using the S3-compatible StorageModule.
 
 ---
 
 ## Overview
 
-Stratum's `StorageModule` wraps [RustFS](https://github.com/rustfs/rustfs) — a lightweight, self-hosted, S3-compatible object store written in Rust. It is an **optional module** enabled during `./install.sh`.
+Stratum's `StorageModule` integrates with an S3-compatible object store. The default implementation uses [RustFS](https://github.com/rustfs/rustfs) (a lightweight self-hosted option), but any S3-compatible service can be substituted by updating the env vars. It is an **optional module** enabled during `./install.sh`.
 
 **Key design rules:**
-- Clients **never** call RustFS S3 directly without a presigned URL
+- Clients **never** call S3 storage directly without a presigned URL
 - Clients **never** call NestJS directly — all requests go through **Hasura GraphQL**
-- NestJS acts as an internal **Hasura Action handler** that communicates with RustFS S3
+- NestJS acts as an internal **Hasura Action handler** that communicates with S3 storage
 
 **Upload flow:**
 ```mermaid
@@ -19,7 +19,7 @@ sequenceDiagram
     participant C as Client
     participant H as Hasura
     participant N as NestJS
-    participant G as RustFS S3
+    participant G as S3 Storage
 
     C->>H: mutation requestUploadUrl(filename, mimeType)
     H->>N: Action handler
@@ -68,7 +68,7 @@ mutation RequestUploadUrl($filename: String!, $mimeType: String!, $bucket: Strin
 ### `confirmUpload`
 
 ```graphql
-# Client calls this after the direct PUT to Garage succeeds
+# Client calls this after the direct PUT to S3 storage succeeds
 mutation ConfirmUpload($fileKey: String!, $size: Int!, $mimeType: String!) {
   confirmUpload(fileKey: $fileKey, size: $size, mimeType: $mimeType) {
     id
@@ -83,7 +83,7 @@ mutation ConfirmUpload($fileKey: String!, $size: Int!, $mimeType: String!) {
 ### `deleteFile`
 
 ```graphql
-# Soft-delete a file record and remove the object from Garage S3
+# Soft-delete a file record and remove the object from S3 storage
 mutation DeleteFile($fileId: uuid!) {
   deleteFile(fileId: $fileId) {
     success
@@ -164,7 +164,7 @@ async deleteFile(
 
   if (!file) throw new Error('File not found');
 
-  // Delete from RustFS S3
+  // Delete from S3 storage
   await this.storageService.deleteFile(file.key, file.bucket);
 
   // Soft-delete the metadata record
@@ -194,7 +194,7 @@ The `files` table stores metadata for every uploaded object. It follows the stan
 | `url` | TEXT | Public URL |
 | `size` | INT | File size in bytes |
 | `mime_type` | TEXT | MIME type |
-| `bucket` | TEXT | Garage bucket name |
+| `bucket` | TEXT | S3 bucket name |
 | `created_at` | TIMESTAMPTZ | Set by PostgreSQL `DEFAULT NOW()` |
 | `created_by` | UUID → users | Set by Hasura Column Preset |
 | `updated_at` | TIMESTAMPTZ | Set by Hasura Column Preset `now()` |
@@ -206,7 +206,7 @@ The `files` table stores metadata for every uploaded object. It follows the stan
 
 ## StorageService API
 
-`StorageService` (`nestjs/src/storage/storage.service.ts`) wraps the RustFS S3 SDK:
+`StorageService` (`nestjs/src/storage/storage.service.ts`) wraps the AWS S3 SDK (compatible with any S3-compatible service):
 
 ```typescript
 // Generate a presigned URL for client upload
@@ -223,15 +223,15 @@ getPublicUrl(key: string, bucket?: string): Promise<string>
 // Generate a presigned download URL (for private buckets)
 getPresignedDownloadUrl(key: string, options?: { expiresIn?: number }): Promise<string>
 
-// Delete an object from Garage
+// Delete an object from S3 storage
 deleteFile(key: string, bucket?: string): Promise<void>
 ```
 
 ---
 
-## RustFS Web Console
+## S3 Web Console
 
-Access the RustFS management console at `http://localhost:9001` (dev mode only).
+Access the S3-compatible storage console at `http://localhost:9001` (dev mode only, RustFS default).
 
 Use it to:
 - View and create buckets
@@ -242,10 +242,10 @@ Use it to:
 
 ## Disabling Storage Module
 
-If you chose not to enable storage during `./install.sh`, the `StorageModule` is not imported in `app.module.ts` and RustFS containers are not included in `docker-compose.yml`.
+If you chose not to enable storage during `./install.sh`, the `StorageModule` is not imported in `app.module.ts` and S3 storage containers are not included in `docker-compose.yml`.
 
 To add it later, re-run `./install.sh` and select storage, or manually:
-1. Add RustFS service to `docker-compose.yml` from `docker-compose.storage.yml`
+1. Add S3 service to `docker-compose.yml` from `docker-compose.storage.yml`
 2. Add storage environment variables to `.env`
 3. Import `StorageModule` in `app.module.ts`
 
