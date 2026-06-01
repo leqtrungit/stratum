@@ -13,7 +13,7 @@ Instead of spending 2–5 days setting up PostgreSQL, GraphQL, auth, object stor
 - ⚡ **Hasura GraphQL Engine** — Auto-generated CRUD, permissions, subscriptions, event triggers
 - 🪺 **NestJS** — Business logic layer, custom resolvers, REST endpoints, webhook handlers
 - 🐳 **Docker Compose** — Local dev and production ready
-- 🗃️ **Garage S3** _(optional)_ — Lightweight self-hosted S3-compatible object storage
+- 🗃️ **RustFS S3** _(optional)_ — Lightweight self-hosted S3-compatible object storage
 
 ---
 
@@ -51,16 +51,16 @@ flowchart TD
     end
 
     subgraph optional["Optional Layer"]
-        GARAGE["🗃️ Garage S3\nPort 3902\nObject Storage"]
-        GARAGEUI["🌐 Garage WebUI\nPort 3909"]
+        RUSTFS["🗃️ RustFS S3\nPort 3902\nObject Storage"]
+        RUSTFSUI["🌐 S3 WebUI\nPort 3909"]
     end
 
     CLIENT -->|"GraphQL only"| HASURA
     HASURA -->|"SQL"| PG
     HASURA -->|"Actions / Remote Schema"| NESTJS
     HASURA -->|"Event Triggers"| NESTJS
-    NESTJS -.->|"Presigned URL\n(file upload)"| GARAGE
-    GARAGE --- GARAGEUI
+    NESTJS -.->|"Presigned URL\n(file upload)"| RUSTFS
+    RUSTFS --- RUSTFSUI
 ```
 
 **Typical request flow:**
@@ -68,7 +68,7 @@ flowchart TD
 2. Hasura enforces row-level permissions and executes against PostgreSQL
 3. For custom business logic, Hasura delegates to **NestJS** via Actions or Remote Schema
 4. For async side-effects (emails, notifications), Hasura fires Event Triggers to NestJS
-5. For file uploads, NestJS generates a presigned URL — the client uploads directly to Garage S3
+5. For file uploads, NestJS generates a presigned URL — the client uploads directly to S3
 
 > **Design rule:** Hasura is the sole public-facing GraphQL endpoint. NestJS is an internal service — clients never call NestJS directly. NestJS only receives requests from Hasura (actions, event triggers, remote schema).
 
@@ -86,27 +86,24 @@ stratum/
 │
 ├── hasura/
 │   ├── migrations/             # Versioned DB migrations
-│   ├── metadata/               # Hasura permissions, relationships
+│   ├── metadata/               # Hasura permissions, relationships, actions
 │   └── config.yaml
 │
 ├── nestjs/
 │   ├── src/
 │   │   ├── app.module.ts
-│   │   ├── hasura/             # Hasura client, event handler module
-│   │   ├── storage/            # StorageModule (Garage S3)
+│   │   ├── hasura/             # Hasura client module
+│   │   ├── storage/            # StorageModule (S3 upload, presigned URLs)
 │   │   └── common/             # Guards, interceptors, decorators
 │   ├── Dockerfile
 │   └── package.json
 │
-├── garage/
-│   ├── config/
-│   │   └── garage.toml
-│   └── README.md
-│
 └── docs/
     ├── architecture.md
+    ├── adding-feature.md
     ├── adding-tables.md
     ├── adding-resolvers.md
+    ├── authentication.md
     └── storage-usage.md
 ```
 
@@ -117,10 +114,10 @@ stratum/
 | Module | Status | Description |
 |---|---|---|
 | PostgreSQL + Hasura + NestJS | ✅ Core | Always included |
-| Garage S3 Object Storage | 🔧 Optional | Selected during `./install.sh` |
-| JWT Authentication | 🗓️ v0.2 | Planned |
-| PgBouncer Connection Pooling | 🗓️ v0.3 | Planned |
-| GitHub Actions CI Template | 🗓️ v0.3 | Planned |
+| S3 Object Storage (RustFS) | 🔧 Optional | Selected during `./install.sh` — swappable with any S3-compatible service |
+| JWT Authentication | ✅ Included | JWT validation in Hasura + session variables forwarded to NestJS |
+| PgBouncer Connection Pooling | 🗓️ Planned | Roadmap item |
+| GitHub Actions CI Template | 🗓️ Planned | Roadmap item |
 
 ---
 
@@ -128,29 +125,30 @@ stratum/
 
 | Document | Description |
 |---|---|
-| [Architecture](./docs/architecture.md) | System design, component roles, request flow |
+| [Architecture](./docs/architecture.md) | System design, component roles, request flow diagrams |
+| [Adding a Feature](./docs/adding-feature.md) | End-to-end guide: migration → permissions → NestJS handler → Hasura action → test |
 | [Adding Tables](./docs/adding-tables.md) | How to add new tables and Hasura migrations |
-| [Adding Resolvers](./docs/adding-resolvers.md) | How to write custom NestJS resolvers |
-| [Storage Usage](./docs/storage-usage.md) | How to use the Garage S3 StorageModule |
-| [Agents](./agents.md) | AI agent context and guidelines for this project |
+| [Adding Resolvers](./docs/adding-resolvers.md) | NestJS action handlers, event triggers, testing, and HasuraWebhookGuard scope |
+| [Authentication](./docs/authentication.md) | JWT claims structure, session variables flow, login pattern |
+| [Storage Usage](./docs/storage-usage.md) | How to use the S3 StorageModule (upload, confirm, delete) |
 
 ---
 
 ## Roadmap
 
 ### v0.1 — Proof of Concept
-- [ ] `docker-compose.base.yml` running (Postgres + Hasura + NestJS)
-- [ ] `docker-compose.storage.yml` running (Garage + WebUI)
-- [ ] Install script prototype (bash, 3 basic questions)
-- [ ] NestJS with StorageModule (upload, presigned URL, delete)
-- [ ] Sample Hasura migration: `files` table for metadata
+- [x] `docker-compose.base.yml` running (Postgres + Hasura + NestJS)
+- [x] `docker-compose.storage.yml` running (RustFS + WebUI)
+- [x] Install script (bash, interactive questions, auto-generated `.env`)
+- [x] NestJS with StorageModule (upload presigned URL, confirm, delete)
+- [x] Sample Hasura migration: `files` table + storage actions registered
 
 ### v0.2 — Developer Ready
-- [ ] Complete install script (4–6 questions, input validation)
-- [ ] Auto-enable/disable StorageModule in `app.module.ts`
-- [ ] Auto-generated `.env` with secrets
-- [ ] README and core docs
-- [ ] `make` targets: `up`, `down`, `reset`, `console`
+- [x] Complete install script with input validation and optional storage toggle
+- [x] Auto-enable/disable StorageModule in `app.module.ts`
+- [x] Auto-generated `.env` with secrets
+- [x] README and core docs (architecture, tables, resolvers, auth, storage, feature guide)
+- [x] `make` targets: `up`, `down`, `reset`, `console`
 
 ### v0.3 — Production Hardened
 - [ ] Health check endpoints (`/health`, `/ready`)
@@ -163,7 +161,7 @@ stratum/
 
 ## Contributing
 
-Contributions are welcome! Please read the [Contributing Guide](./docs/contributing.md) before submitting a PR.
+Contributions are welcome! Please open an issue or PR on GitHub.
 
 ---
 
