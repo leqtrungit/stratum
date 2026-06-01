@@ -66,9 +66,12 @@ else
     
     # Use sed to delete lines between markers (inclusive)
     # This works on most Unix systems including macOS
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/actions.yaml
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/custom_types.yaml
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/databases/default/tables/tables.yaml
+    for meta_file in \
+        hasura/metadata/actions.yaml \
+        hasura/metadata/custom_types.yaml \
+        hasura/metadata/databases/default/tables/tables.yaml; do
+      [[ -f "$meta_file" ]] && sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' "$meta_file" || true
+    done
     
     # Delete storage migration and table metadata
     rm -rf hasura/migrations/default/*_files_table
