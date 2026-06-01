@@ -6,6 +6,12 @@
 
 set -e
 
+# Safety guard: must run from a directory that has the required project files
+if [[ ! -f ".env.example" || ! -d "hasura" || ! -f "docker-compose.base.yml" ]]; then
+  echo "Error: run install.sh from the project root (must contain .env.example, hasura/, docker-compose.base.yml)" >&2
+  exit 1
+fi
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

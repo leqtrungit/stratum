@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install script tests: verify bootstrap.sh produces correct output.
-# Runs in an isolated temp directory — no Docker required.
+# Install script tests: verify install.sh produces correct output.
+# Runs in isolated temp directories — no Docker required.
 # Usage: bash tests/scripts/test-install.sh
 
 set -euo pipefail
@@ -24,41 +24,39 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Helpers
 # ---------------------------------------------------------------------------
 
-setup_tmp() {
-  TMP_DIR=$(mktemp -d)
-  trap "rm -rf $TMP_DIR" EXIT
+# Copy only what install.sh needs — never copy node_modules
+setup_install_dir() {
+  local target="$1"
+  mkdir -p "$target"
+  cp -R "$PROJECT_ROOT/hasura" "$target/"
+  cp "$PROJECT_ROOT/.env.example" "$target/"
+  cp "$PROJECT_ROOT/docker-compose.base.yml" "$target/"
+  [[ -f "$PROJECT_ROOT/docker-compose.storage.yml" ]] && \
+    cp "$PROJECT_ROOT/docker-compose.storage.yml" "$target/" || true
+}
+
+run_install() {
+  local dir="$1" answers="$2"
+  # Verify the dir has required files before running install — safety net
+  if [[ ! -f "$dir/.env.example" || ! -d "$dir/hasura" || ! -f "$dir/docker-compose.base.yml" ]]; then
+    echo "test setup failed: required files missing in $dir" >&2
+    return 1
+  fi
+  (cd "$dir" && echo -e "$answers" | bash "$PROJECT_ROOT/install.sh" > /dev/null 2>&1)
 }
 
 assert_file_exists() {
-  local file="$1" label="$2"
-  if [[ -f "$TMP_DIR/$file" ]]; then
+  local dir="$1" file="$2" label="$3"
+  if [[ -f "$dir/$file" ]]; then
     pass "$label — $file exists"
   else
     fail "$label — $file missing"
   fi
 }
 
-assert_file_not_exists() {
-  local file="$1" label="$2"
-  if [[ ! -f "$TMP_DIR/$file" ]]; then
-    pass "$label — $file correctly absent"
-  else
-    fail "$label — $file should not exist"
-  fi
-}
-
-assert_dir_not_exists() {
-  local dir="$1" label="$2"
-  if [[ ! -d "$TMP_DIR/$dir" ]]; then
-    pass "$label — $dir correctly absent"
-  else
-    fail "$label — $dir should not exist"
-  fi
-}
-
 assert_file_contains() {
-  local file="$1" pattern="$2" label="$3"
-  if grep -q "$pattern" "$TMP_DIR/$file" 2>/dev/null; then
+  local dir="$1" file="$2" pattern="$3" label="$4"
+  if grep -q "$pattern" "$dir/$file" 2>/dev/null; then
     pass "$label"
   else
     fail "$label — pattern '$pattern' not found in $file"
@@ -66,8 +64,8 @@ assert_file_contains() {
 }
 
 assert_file_not_contains() {
-  local file="$1" pattern="$2" label="$3"
-  if ! grep -q "$pattern" "$TMP_DIR/$file" 2>/dev/null; then
+  local dir="$1" file="$2" pattern="$3" label="$4"
+  if ! grep -q "$pattern" "$dir/$file" 2>/dev/null; then
     pass "$label"
   else
     fail "$label — '$pattern' should not be in $file"
@@ -75,102 +73,66 @@ assert_file_not_contains() {
 }
 
 assert_secret_unique() {
-  local key="$1" run1="$2" run2="$3" label="$4"
-  val1=$(grep "^$key=" "$run1" | cut -d= -f2-)
-  val2=$(grep "^$key=" "$run2" | cut -d= -f2-)
+  local key="$1" env1="$2" env2="$3" label="$4"
+  local val1 val2
+  val1=$(grep "^$key=" "$env1" | cut -d= -f2-)
+  val2=$(grep "^$key=" "$env2" | cut -d= -f2-)
   if [[ -n "$val1" && "$val1" != "$val2" ]]; then
     pass "$label — $key is unique across runs"
   else
-    fail "$label — $key is identical across runs (not random): '$val1'"
+    fail "$label — $key identical across runs (not random)"
   fi
 }
 
 # ---------------------------------------------------------------------------
-# Test: Core-only setup (STORAGE_ENABLED=n)
-# ---------------------------------------------------------------------------
-
-run_bootstrap_core() {
-  local dir="$1"
-  cd "$dir"
-  # Copy project files that bootstrap.sh would normally download
-  cp -R "$PROJECT_ROOT/nestjs" .
-  cp -R "$PROJECT_ROOT/hasura" .
-  cp -R "$PROJECT_ROOT/.template" . 2>/dev/null || true
-  cp "$PROJECT_ROOT/docker-compose.base.yml" .
-  cp "$PROJECT_ROOT/docker-compose.storage.yml" . 2>/dev/null || true
-  cp "$PROJECT_ROOT/.env.example" .
-
-  # Run bootstrap logic (install portion only — skip download step)
-  # We source the relevant section by running install.sh directly
-  PROJECT_NAME="test-project" ENABLE_STORAGE="n" bash "$PROJECT_ROOT/bootstrap.sh" <<< $'test-project\nn' 2>/dev/null || true
-}
-
+# Suite 1: Core-only setup
 # ---------------------------------------------------------------------------
 
 info "=== Stratum Install Tests ==="
 echo ""
-
-# --- Test Suite 1: Core-only ---
 info "--- Suite 1: Core-only setup (STORAGE_ENABLED=n) ---"
 
-setup_tmp
-TMP_CORE="$TMP_DIR/core"
-mkdir -p "$TMP_CORE"
+TMP1=$(mktemp -d)
+trap "rm -rf $TMP1" EXIT
 
-(cd "$TMP_CORE" && \
-  cp -R "$PROJECT_ROOT/nestjs" . && \
-  cp -R "$PROJECT_ROOT/hasura" . && \
-  cp -R "$PROJECT_ROOT/.env.example" . && \
-  cp "$PROJECT_ROOT/docker-compose.base.yml" . && \
-  [[ -d "$PROJECT_ROOT/.template" ]] && cp -R "$PROJECT_ROOT/.template" . || true && \
-  [[ -f "$PROJECT_ROOT/docker-compose.storage.yml" ]] && cp "$PROJECT_ROOT/docker-compose.storage.yml" . || true
-) 2>/dev/null
+setup_install_dir "$TMP1"
 
-# Run install.sh in core-only mode
-if (cd "$TMP_CORE" && echo -e "test-project\nn" | bash "$PROJECT_ROOT/install.sh" > /dev/null 2>&1); then
-  TMP_DIR="$TMP_CORE"
-
-  assert_file_exists ".env"                   "1.1 .env is created"
-  assert_file_exists "docker-compose.yml"     "1.1 docker-compose.yml is created"
-
-  assert_file_not_contains "docker-compose.yml" "garage"  "1.1 Storage absent from docker-compose.yml"
-  assert_file_not_contains "docker-compose.yml" "rustfs"  "1.1 RustFS absent from docker-compose.yml"
-
-  assert_file_contains ".env" "PROJECT_NAME=test-project" "1.1 PROJECT_NAME set correctly"
-  assert_file_contains ".env" "STORAGE_ENABLED=false"     "1.1 STORAGE_ENABLED=false"
+if run_install "$TMP1" "test-project\nn"; then
+  assert_file_exists     "$TMP1" ".env"               "1.1 .env is created"
+  assert_file_exists     "$TMP1" "docker-compose.yml" "1.1 docker-compose.yml is created"
+  assert_file_not_contains "$TMP1" "docker-compose.yml" "garage" "1.1 Storage absent from docker-compose.yml"
+  assert_file_not_contains "$TMP1" "docker-compose.yml" "rustfs" "1.1 RustFS absent from docker-compose.yml"
+  assert_file_contains   "$TMP1" ".env" "PROJECT_NAME=test-project" "1.1 PROJECT_NAME set correctly"
+  assert_file_contains   "$TMP1" ".env" "STORAGE_ENABLED=false"     "1.1 STORAGE_ENABLED=false"
 else
   fail "1.1 install.sh failed to run in core-only mode"
 fi
 
 echo ""
 
-# --- Test Suite 2: Secret uniqueness ---
+# ---------------------------------------------------------------------------
+# Suite 2: Secrets are unique per run
+# ---------------------------------------------------------------------------
+
 info "--- Suite 2: Secrets are unique per run ---"
 
-TMP_RUN1=$(mktemp -d)
-TMP_RUN2=$(mktemp -d)
-trap "rm -rf $TMP_RUN1 $TMP_RUN2" EXIT 2>/dev/null || true
+TMP2A=$(mktemp -d)
+TMP2B=$(mktemp -d)
+trap "rm -rf $TMP1 $TMP2A $TMP2B" EXIT
 
-for dir in "$TMP_RUN1" "$TMP_RUN2"; do
-  (cd "$dir" && \
-    cp -R "$PROJECT_ROOT/nestjs" . && \
-    cp -R "$PROJECT_ROOT/hasura" . && \
-    cp "$PROJECT_ROOT/.env.example" . && \
-    cp "$PROJECT_ROOT/docker-compose.base.yml" . && \
-    [[ -f "$PROJECT_ROOT/docker-compose.storage.yml" ]] && cp "$PROJECT_ROOT/docker-compose.storage.yml" . || true && \
-    echo -e "my-project\nn" | bash "$PROJECT_ROOT/install.sh" > /dev/null 2>&1
-  ) 2>/dev/null || true
-done
+setup_install_dir "$TMP2A"
+setup_install_dir "$TMP2B"
 
-if [[ -f "$TMP_RUN1/.env" && -f "$TMP_RUN2/.env" ]]; then
-  assert_secret_unique "HASURA_GRAPHQL_ADMIN_SECRET" "$TMP_RUN1/.env" "$TMP_RUN2/.env" "2.1"
-  assert_secret_unique "HASURA_EVENT_SECRET"         "$TMP_RUN1/.env" "$TMP_RUN2/.env" "2.1"
-  assert_secret_unique "POSTGRES_PASSWORD"           "$TMP_RUN1/.env" "$TMP_RUN2/.env" "2.1"
+run_install "$TMP2A" "my-project\nn" || true
+run_install "$TMP2B" "my-project\nn" || true
+
+if [[ -f "$TMP2A/.env" && -f "$TMP2B/.env" ]]; then
+  assert_secret_unique "HASURA_GRAPHQL_ADMIN_SECRET" "$TMP2A/.env" "$TMP2B/.env" "2.1"
+  assert_secret_unique "HASURA_EVENT_SECRET"         "$TMP2A/.env" "$TMP2B/.env" "2.1"
+  assert_secret_unique "POSTGRES_PASSWORD"           "$TMP2A/.env" "$TMP2B/.env" "2.1"
 else
-  fail "2.1 Could not run two separate installs to compare secrets"
+  fail "2.1 Could not run two installs to compare secrets"
 fi
-
-rm -rf "$TMP_RUN1" "$TMP_RUN2"
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -179,6 +141,4 @@ rm -rf "$TMP_RUN1" "$TMP_RUN2"
 echo ""
 info "=== Results: ${PASS} passed, ${FAIL} failed ==="
 
-if [[ $FAIL -gt 0 ]]; then
-  exit 1
-fi
+[[ $FAIL -eq 0 ]]
