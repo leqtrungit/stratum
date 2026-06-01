@@ -59,6 +59,30 @@
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 
+## Agent Roles
+
+Each domain has a dedicated skill file. Spawn a subagent with the relevant SKILL.md as context.
+
+| Agent | Skill file | Owns |
+|---|---|---|
+| **Hasura** | `.agents/skills/hasura-graphql-engine/SKILL.md` | `hasura/metadata/`, `hasura/migrations/` |
+| **NestJS** | `.agents/skills/nestjs/SKILL.md` | `nestjs/src/` |
+| **Infra** | `.agents/skills/infra/SKILL.md` | `docker-compose*.yml`, `install.sh`, `bootstrap.sh`, `Makefile` |
+
+### Handoff Protocol
+
+When work crosses domain boundaries:
+
+- **NestJS adds a new action** → must also update Hasura metadata (`actions.yaml`, `actions.graphql`). Coordinate with Hasura agent or handle in same task.
+- **Infra adds a new env var** → NestJS agent must update the service to read it via `configService`.
+- **Hasura adds a new table** → Infra agent may need a migration; NestJS agent may need a new event handler.
+
+### Verification Gate
+
+Every agent must run `make test` before marking a task complete. If tests fail, fix before handing off.
+
 ## Resources
 
-- Hasura skill reference: `.agents/skills/hasura-graphql-engine/` — tra cứu Hasura-specific patterns, permissions, actions, event triggers
+- Hasura skill: `.agents/skills/hasura-graphql-engine/SKILL.md`
+- NestJS skill: `.agents/skills/nestjs/SKILL.md`
+- Infra skill: `.agents/skills/infra/SKILL.md`
