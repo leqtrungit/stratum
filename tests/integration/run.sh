@@ -7,7 +7,7 @@
 #
 # Usage: bash tests/integration/run.sh [core|storage|all]
 #   core    — test minimal install (no storage)
-#   storage — test full install (with storage)  [not yet implemented]
+#   storage — test full install (with storage)
 #   all     — run all scenarios (default)
 # =============================================================================
 
