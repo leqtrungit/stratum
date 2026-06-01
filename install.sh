@@ -90,7 +90,15 @@ if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
     sed -i.bak "s/^S3_ACCESS_KEY=.*/S3_ACCESS_KEY=$STORAGE_ACCESS_KEY/" .env
     sed -i.bak "s/^S3_SECRET_KEY=.*/S3_SECRET_KEY=$STORAGE_SECRET_KEY/" .env
     
-    # 6. Generate docker-compose.yml (Merged)
+    # 6. Apply Storage template overlay (app.module.ts, metadata, etc.)
+    echo -e "${YELLOW}Applying Storage Module overlay...${NC}"
+    if [[ -d ".template/storage" ]]; then
+      cp -R .template/storage/* ./
+    else
+      echo -e "${YELLOW}Warning: .template/storage not found — skipping overlay.${NC}"
+    fi
+
+    # 7. Generate docker-compose.yml (Merged)
     echo -e "${YELLOW}Generating merged docker-compose.yml with storage...${NC}"
     # Use docker compose config to merge files properly
     # We pass the newly created .env to ensure required variables are present
