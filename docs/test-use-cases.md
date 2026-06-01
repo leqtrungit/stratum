@@ -5,7 +5,7 @@
 ## 1. Setup & Installation (CLI Level)
 - **Case 1.1: Core Only Setup**
   - Run `./install.sh` with `STORAGE_ENABLED=n`.
-  - **Verify**: `.env` is created, `docker-compose.yml` excludes Garage, Hasura metadata is cleaned (no storage actions).
+  - **Verify**: `.env` is created, `docker-compose.yml` excludes S3 storage, Hasura metadata is cleaned (no storage actions).
 - **Case 1.2: Full Stack Setup**
   - Run `./install.sh` with `STORAGE_ENABLED=y`.
   - **Verify**: `docker-compose.yml` includes all services, metadata is complete.
@@ -16,17 +16,17 @@
 - **Case 2.1: Service Health**
   - **Verify**: Hasura `/healthz` returns 200.
   - **Verify**: NestJS `/health` returns status 'ok'.
-  - **Verify**: Docker containers (Postgres, Garage) are healthy.
+  - **Verify**: Docker containers (Postgres, S3 storage) are healthy.
 - **Case 2.2: Internal Networking**
   - **Verify**: Hasura can reach NestJS webhook endpoints.
   - **Verify**: NestJS can reach Hasura GraphQL API via admin secret.
-  - **Verify**: NestJS can connect to Garage S3 API.
+  - **Verify**: NestJS can connect to S3-compatible storage API.
 
 ## 3. Core API & Database
 - **Case 3.1: Users Table**
   - **Verify**: Minimal `users` table exists and supports basic CRUD.
 - **Case 3.2: Audit Fields & Triggers**
-  - **Verify**: `updated_at` is auto-updated on record change via Postgres trigger.
+  - **Verify**: `updated_at` is auto-updated on record change via Hasura Column Preset.
   - **Verify**: `created_by` is auto-set by Hasura Column Presets from JWT/Session.
 - **Case 3.3: Permissions**
   - **Verify**: Row-level security prevents User A from reading User B's data.

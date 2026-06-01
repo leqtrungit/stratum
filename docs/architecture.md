@@ -13,7 +13,7 @@ Stratum follows a **layered architecture** — each layer has a single, clear re
 | **Public GraphQL API** | Hasura (Port 8080) | Sole public-facing endpoint, auto-generated CRUD, permissions, subscriptions |
 | **Business Logic** | NestJS (Port 3000) | Internal service — action handlers, event trigger handlers, remote schema |
 | **Database** | PostgreSQL (Port 5432) | Primary persistent datastore |
-| **Object Storage** | Garage S3 (Port 3902) | File uploads, S3-compatible, self-hosted _(optional)_ |
+| **Object Storage** | S3-compatible storage (Port 3902) | File uploads, self-hosted or external _(optional)_ |
 
 **Key architectural decision:** Hasura is the **only public-facing interface**. Clients speak GraphQL directly to Hasura. NestJS is an internal service — it never receives requests from clients, only from Hasura (via Actions, Remote Schema, or Event Triggers).
 
@@ -35,8 +35,8 @@ flowchart TD
     end
 
     subgraph optional["Optional Layer"]
-        GARAGE["🗃️ Garage S3\nPort 3902\nObject Storage"]
-        GARAGEUI["🌐 Garage WebUI\nPort 3909"]
+        GARAGE["🗃️ S3 Storage\nPort 3902\nObject Storage"]
+        GARAGEUI["🌐 S3 WebUI\nPort 3909"]
     end
 
     CLIENT -->|"GraphQL only"| HASURA
@@ -79,7 +79,7 @@ An **internal service** that implements business logic on behalf of Hasura. Clie
 - Handle **Hasura Event Triggers** — webhooks fired on data changes (e.g. send welcome email on user creation)
 - Expose **Remote Schema** — additional GraphQL types merged into Hasura's schema
 - Validate and authenticate incoming requests from Hasura (via shared secret)
-- Generate presigned URLs for Garage S3 file uploads (when StorageModule is enabled)
+- Generate presigned URLs for S3-compatible file uploads (when StorageModule is enabled)
 
 **Does NOT:**
 - Accept requests directly from clients
@@ -96,9 +96,9 @@ The **primary datastore**.
 - Indexing and query optimization
 - Accessed exclusively by Hasura
 
-### 3.4 Garage S3 (Port 3902) — Optional
+### 3.4 S3-compatible Storage (Port 3902) — Optional
 
-A **lightweight, self-hosted, S3-compatible object store**.
+A **pluggable S3-compatible object store** (default: RustFS, replaceable with any S3-compatible service).
 
 **Responsibilities:**
 - Store binary files (images, documents, videos, etc.)
@@ -167,7 +167,7 @@ sequenceDiagram
     participant C as Client
     participant H as Hasura
     participant N as NestJS
-    participant G as Garage S3
+    participant G as S3 Storage
     participant P as PostgreSQL
 
     C->>H: mutation requestUploadUrl
@@ -197,7 +197,7 @@ sequenceDiagram
     participant C as Client
     participant H as Hasura
     participant N as NestJS
-    participant G as Garage S3
+    participant G as S3 Storage
     participant P as PostgreSQL
 
     C->>H: mutation deleteFile(fileId)
@@ -228,7 +228,7 @@ sequenceDiagram
 | **Hasura Admin Secret** | Never exposed outside the Docker network; used only for internal Hasura config |
 | **Row-level Permissions** | Defined in Hasura metadata per role — no data leaks at the database layer |
 | **PostgreSQL** | Not exposed outside Docker network; accessible only by Hasura |
-| **Garage S3** | Not exposed publicly; presigned URLs issued by NestJS with short TTL |
+| **S3 Storage** | Not exposed publicly; presigned URLs issued by NestJS with short TTL |
 | **Hasura Console** | Enabled in `local` environment only; disabled or proxied in `production` |
 | **NestJS** | Not exposed publicly; accessible only within Docker network by Hasura |
 
@@ -241,7 +241,7 @@ sequenceDiagram
 | Public GraphQL endpoint | Hasura | Auto-generated CRUD, realtime subscriptions, event triggers out of the box |
 | Business logic layer | NestJS | TypeScript, clear module system, decorator pattern — handles Hasura actions and events |
 | Hasura-first pattern | Client → Hasura, Hasura → NestJS | Maximises Hasura's built-in capabilities; NestJS handles only what Hasura cannot |
-| Object storage | Garage S3 | Lightest option (1 container), Apache 2.0, S3-compatible, no paywall |
+| Object storage | S3-compatible (default: RustFS) | Pluggable — default is RustFS (1 container, Apache 2.0), replaceable with any S3-compatible service |
 | Database | PostgreSQL 16 | Best compatibility with Hasura, production-proven |
 | Package manager | pnpm | Faster than npm/yarn, disk-efficient |
 | Install tooling | Pure bash | No Node, Python, or other runtimes required — only Docker needed |
@@ -255,8 +255,8 @@ sequenceDiagram
 | Hasura | Public | 8080 | Only public-facing service |
 | NestJS | Internal only | 3000 | Called by Hasura only |
 | PostgreSQL | Internal only | 5432 | Called by Hasura only |
-| Garage S3 API | Internal only | 3902 | Called by NestJS only |
-| Garage WebUI | Dev only | 3909 | Disabled in production |
+| S3 Storage API | Internal only | 3902 | Called by NestJS only |
+| S3 WebUI | Dev only | 3909 | Disabled in production |
 
 ---
 
