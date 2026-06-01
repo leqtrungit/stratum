@@ -29,6 +29,8 @@
 ## Workflow Orchestration
 - **Commit Granularity**: Separate changes into logical commits (e.g., Infrastructure, Core API, Feature Module, Docs) to maintain a clean and searchable history.
 - **Plan First**: Always update `tasks/todo.md` and check-in with the user before starting major implementation phases.
+- **CRITICAL — Review before `git add` on hasura/**: `install.sh` deletes/strips files in `hasura/metadata/` and `hasura/migrations/` when run in core-only mode. Before staging `hasura/`, ALWAYS run `git diff --stat hasura/` and verify no files are unexpectedly deleted. If any `.yaml` or `.sql` files show as deleted, DO NOT commit — restore them first.
+- **Test isolation**: Any test that runs `install.sh` in the project root MUST use `backup_files()`/`restore_files()` (temp copy approach) to protect working tree changes. Never use `git checkout --` to restore — it destroys uncommitted work.
 
 ## NestJS & Docker
 - **Build Structure**: Ensure `tsconfig.build.json` excludes any `.ts` files in the root (like `codegen.ts` or `eslint.config.ts`) to prevent `tsc` from creating a nested `dist/src` folder structure. This ensures the Docker entrypoint `dist/main.js` remains correct.
