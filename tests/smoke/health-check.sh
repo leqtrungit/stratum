@@ -73,11 +73,16 @@ else
   fail "Hasura /healthz did not respond"
 fi
 
-info "  Waiting for NestJS /health..."
-if wait_for_url "http://localhost:3000/health" "NestJS"; then
-  pass "NestJS /health → 200"
+info "  Checking NestJS /health (internal)..."
+nestjs_container=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
+if [[ -n "$nestjs_container" ]]; then
+  if docker exec "$nestjs_container" wget -qO- http://localhost:3000/health > /dev/null 2>&1; then
+    pass "NestJS /health → 200 (via docker exec)"
+  else
+    fail "NestJS /health did not respond inside container"
+  fi
 else
-  fail "NestJS /health did not respond"
+  fail "NestJS container not healthy — cannot check /health"
 fi
 
 echo ""

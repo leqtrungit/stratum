@@ -68,11 +68,12 @@ else
     # This works on most Unix systems including macOS
     for meta_file in \
         hasura/metadata/actions.yaml \
+        hasura/metadata/actions.graphql \
         hasura/metadata/custom_types.yaml \
         hasura/metadata/databases/default/tables/tables.yaml; do
       [[ -f "$meta_file" ]] && sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' "$meta_file" || true
     done
-    
+
     # Delete storage migration and table metadata
     rm -rf hasura/migrations/default/*_files_table
     rm -f hasura/metadata/databases/default/tables/public_files.yaml
