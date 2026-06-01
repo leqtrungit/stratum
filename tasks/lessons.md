@@ -16,6 +16,16 @@
 - **Actions SDL Requirement**: When defining actions in split mode, Hasura CLI v3 requires an `actions.graphql` file containing the SDL definitions (Mutations/Queries and their custom types). Even if types are defined in `actions.yaml`'s `custom_types` section, they may still be required in the `.graphql` file for validation.
 - **Standard Reference**: If metadata parsing fails or structure is unclear, use `hasura init <tmp_dir>` to verify the latest standard structure expected by the installed CLI version.
 
+## Optional Module Pattern (Template Overlay)
+
+- **Pattern**: Optional features (e.g. Storage) are managed via `.template/storage/` overlay — NOT runtime env checks.
+  - Base files (`nestjs/src/app.module.ts`, `hasura/metadata/...`) = core-only version
+  - `.template/storage/` = files that override base when storage is enabled
+  - `install.sh` runs `cp -R .template/storage/* ./` when user enables storage
+  - `install.sh` strips `# STORAGE_START/END` markers from metadata files when storage is disabled
+- **Rule**: Never use `process.env.STORAGE_ENABLED` in source code to conditionally load modules. The template overlay produces the correct file at setup time — no runtime branching needed.
+- **Always check `.template/` before implementing** any feature toggle or optional module logic.
+
 ## Workflow Orchestration
 - **Commit Granularity**: Separate changes into logical commits (e.g., Infrastructure, Core API, Feature Module, Docs) to maintain a clean and searchable history.
 - **Plan First**: Always update `tasks/todo.md` and check-in with the user before starting major implementation phases.
