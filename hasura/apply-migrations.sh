@@ -32,6 +32,10 @@ hasura-cli metadata apply --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_S
 echo "Applying migrations..."
 hasura-cli migrate apply --database-name default --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
 
+# Reload metadata so Hasura re-checks table consistency after migrations created the tables
+echo "Reloading metadata..."
+hasura-cli metadata reload --endpoint "$HASURA_ENDPOINT" --admin-secret "$ADMIN_SECRET" --project /hasura
+
 # Apply seeds only for development
 if [ "$ENVIRONMENT" = "dev" ]; then
     echo "Checking for seeds (development only)..."

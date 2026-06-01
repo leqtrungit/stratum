@@ -16,6 +16,7 @@ fi
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=============================================================================${NC}"
@@ -23,14 +24,44 @@ echo -e "${BLUE}  Stratum — Backend Boilerplate Setup${NC}"
 echo -e "${BLUE}=============================================================================${NC}"
 
 # 1. Project Name
-read -p "Enter project name [stratum]: " PROJECT_NAME
-PROJECT_NAME=${PROJECT_NAME:-stratum}
+while true; do
+  read -p "Enter project name [stratum]: " PROJECT_NAME
+  PROJECT_NAME=${PROJECT_NAME:-stratum}
+  # Normalize: lowercase, spaces → hyphens, strip non-alphanumeric except hyphens
+  PROJECT_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9-]//g')
+  if [[ -z "$PROJECT_NAME" ]]; then
+    echo -e "${RED}Project name cannot be empty or contain only special characters.${NC}"
+  elif [[ ! "$PROJECT_NAME" =~ ^[a-z] ]]; then
+    echo -e "${RED}Project name must start with a lowercase letter.${NC}"
+  else
+    break
+  fi
+done
 
 # 2. Enable Storage
-read -p "Enable RustFS S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
-ENABLE_STORAGE=${ENABLE_STORAGE:-n}
+while true; do
+  read -p "Enable RustFS S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
+  ENABLE_STORAGE=${ENABLE_STORAGE:-n}
+  case "$ENABLE_STORAGE" in
+    y|Y|n|N) break ;;
+    *) echo -e "${RED}Please enter y or n.${NC}" ;;
+  esac
+done
 
-# 3. Generate Secrets
+# 3. Confirm
+echo ""
+echo -e "${BLUE}Summary:${NC}"
+echo -e "  Project name : ${YELLOW}$PROJECT_NAME${NC}"
+echo -e "  Storage      : ${YELLOW}$([[ "$ENABLE_STORAGE" =~ ^[yY]$ ]] && echo enabled || echo disabled)${NC}"
+echo ""
+read -p "Proceed with setup? (y/n) [y]: " CONFIRM
+CONFIRM=${CONFIRM:-y}
+if [[ ! "$CONFIRM" =~ ^[yY]$ ]]; then
+  echo "Aborted."
+  exit 0
+fi
+
+# 4. Generate Secrets
 echo -e "${YELLOW}Generating random secrets...${NC}"
 ADMIN_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
 JWT_SECRET=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1)
@@ -39,7 +70,7 @@ DB_PASSWORD=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 16 | head -n 
 STORAGE_ACCESS_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 20 | head -n 1)
 STORAGE_SECRET_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 40 | head -n 1)
 
-# 4. Create .env
+# 5. Create .env
 echo -e "${YELLOW}Creating .env file...${NC}"
 cp .env.example .env
 
@@ -59,7 +90,15 @@ if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
     sed -i.bak "s/^S3_ACCESS_KEY=.*/S3_ACCESS_KEY=$STORAGE_ACCESS_KEY/" .env
     sed -i.bak "s/^S3_SECRET_KEY=.*/S3_SECRET_KEY=$STORAGE_SECRET_KEY/" .env
     
-    # 5. Generate docker-compose.yml (Merged)
+    # 6. Apply Storage template overlay (app.module.ts, metadata, etc.)
+    echo -e "${YELLOW}Applying Storage Module overlay...${NC}"
+    if [[ -d ".template/storage" ]]; then
+      cp -R .template/storage/* ./
+    else
+      echo -e "${YELLOW}Warning: .template/storage not found — skipping overlay.${NC}"
+    fi
+
+    # 7. Generate docker-compose.yml (Merged)
     echo -e "${YELLOW}Generating merged docker-compose.yml with storage...${NC}"
     # Use docker compose config to merge files properly
     # We pass the newly created .env to ensure required variables are present

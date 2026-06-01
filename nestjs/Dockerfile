@@ -3,8 +3,8 @@
 # =============================================================================
 FROM node:24-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Enable corepack so pnpm version is sourced from packageManager in package.json
+RUN corepack enable
 
 WORKDIR /app
 
@@ -25,17 +25,14 @@ RUN pnpm run build
 # =============================================================================
 FROM node:24-alpine AS production
 
-# Install pnpm (needed for some run scripts if using pnpm start)
-RUN npm install -g pnpm
-
 WORKDIR /app
 
-# Copy production dependencies only
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+# Copy node_modules from builder (avoids reinstall + pnpm lifecycle script issues)
+COPY --from=builder /app/node_modules ./node_modules
 
-# Copy built assets from builder
+# Copy built assets and package.json
 COPY --from=builder /app/dist ./dist
+COPY package.json ./
 
 # Environment defaults
 ENV NODE_ENV=production

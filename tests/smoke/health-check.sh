@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Smoke test: verify all services in a running stack are healthy.
 # Usage: bash tests/smoke/health-check.sh
-# Prerequisites: docker compose up -d has been run.
+# Called by `make test-smoke` which rebuilds and restarts the stack first.
 
 set -euo pipefail
 
@@ -38,16 +38,29 @@ wait_for_url() {
   return 1
 }
 
-check_container_healthy() {
+wait_for_healthy() {
   local name_pattern="$1"
   local label="$2"
+  local max_attempts=30   # up to 90s (30 × 3s) — enough for NestJS build + start
+  local attempt=1
   local container
-  container=$(docker ps --filter "name=$name_pattern" --filter "health=healthy" --format "{{.Names}}" | head -1)
-  if [[ -n "$container" ]]; then
-    pass "$label ($container)"
-  else
-    fail "$label — no healthy container matching '$name_pattern'"
-  fi
+
+  info "  Waiting for $label..."
+  while [[ $attempt -le $max_attempts ]]; do
+    container=$(docker ps --filter "name=$name_pattern" --filter "health=healthy" --format "{{.Names}}" | head -1)
+    if [[ -n "$container" ]]; then
+      pass "$label is healthy ($container)"
+      return 0
+    fi
+    sleep 3
+    ((attempt++)) || true
+  done
+
+  # Timed out — show why
+  local status
+  status=$(docker ps -a --filter "name=$name_pattern" --format "{{.Names}} — {{.Status}}" | head -1)
+  fail "$label — timed out waiting for healthy. Current status: ${status:-not found}"
+  return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -57,23 +70,23 @@ check_container_healthy() {
 info "=== Stratum Smoke Tests ==="
 echo ""
 
-info "--- Container health ---"
+info "--- Waiting for all containers to be healthy ---"
 
-check_container_healthy "postgres"  "PostgreSQL is healthy"
-check_container_healthy "hasura"    "Hasura is healthy"
-check_container_healthy "nestjs"    "NestJS is healthy"
+wait_for_healthy "postgres" "PostgreSQL"
+wait_for_healthy "hasura"   "Hasura"
+wait_for_healthy "nestjs"   "NestJS"
 
 echo ""
 info "--- HTTP endpoints ---"
 
-info "  Waiting for Hasura /healthz..."
+info "  Checking Hasura /healthz..."
 if wait_for_url "http://localhost:8080/healthz" "Hasura"; then
   pass "Hasura /healthz → 200"
 else
   fail "Hasura /healthz did not respond"
 fi
 
-info "  Checking NestJS /health (internal)..."
+info "  Checking NestJS /health (internal via docker exec)..."
 nestjs_container=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
 if [[ -n "$nestjs_container" ]]; then
   if docker exec "$nestjs_container" wget -qO- http://localhost:3000/health > /dev/null 2>&1; then
