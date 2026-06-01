@@ -3,7 +3,7 @@
 # Unified interface for developers and AI agents.
 # =============================================================================
 
-.PHONY: up down reset logs test test-smoke test-install ps help
+.PHONY: up down reset logs console test test-smoke test-install ps help
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  reset         Tear down, remove volumes, and start fresh"
 	@echo "  logs          Tail logs for all services"
 	@echo "  ps            Show container status"
+	@echo "  console       Open Hasura console in browser"
 	@echo ""
 	@echo "  test          Run all tests (smoke + install)"
 	@echo "  test-smoke    Verify running stack is healthy"
@@ -38,6 +39,13 @@ logs:
 
 ps:
 	docker compose ps
+
+console:
+	@source .env 2>/dev/null; \
+	ADMIN_SECRET=$${HASURA_GRAPHQL_ADMIN_SECRET:-}; \
+	URL="http://localhost:8080/console"; \
+	echo "Opening Hasura Console: $$URL"; \
+	open "$$URL" 2>/dev/null || xdg-open "$$URL" 2>/dev/null || echo "Visit: $$URL"
 
 # ---------------------------------------------------------------------------
 # Tests

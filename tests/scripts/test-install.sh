@@ -97,7 +97,7 @@ trap "rm -rf $TMP1" EXIT
 
 setup_install_dir "$TMP1"
 
-if run_install "$TMP1" "test-project\nn"; then
+if run_install "$TMP1" "test-project\nn\ny"; then
   assert_file_exists     "$TMP1" ".env"               "1.1 .env is created"
   assert_file_exists     "$TMP1" "docker-compose.yml" "1.1 docker-compose.yml is created"
   assert_file_not_contains "$TMP1" "docker-compose.yml" "garage" "1.1 Storage absent from docker-compose.yml"
@@ -123,8 +123,8 @@ trap "rm -rf $TMP1 $TMP2A $TMP2B" EXIT
 setup_install_dir "$TMP2A"
 setup_install_dir "$TMP2B"
 
-run_install "$TMP2A" "my-project\nn" || true
-run_install "$TMP2B" "my-project\nn" || true
+run_install "$TMP2A" "my-project\nn\ny" || true
+run_install "$TMP2B" "my-project\nn\ny" || true
 
 if [[ -f "$TMP2A/.env" && -f "$TMP2B/.env" ]]; then
   assert_secret_unique "HASURA_GRAPHQL_ADMIN_SECRET" "$TMP2A/.env" "$TMP2B/.env" "2.1"
@@ -132,6 +132,25 @@ if [[ -f "$TMP2A/.env" && -f "$TMP2B/.env" ]]; then
   assert_secret_unique "POSTGRES_PASSWORD"           "$TMP2A/.env" "$TMP2B/.env" "2.1"
 else
   fail "2.1 Could not run two installs to compare secrets"
+fi
+
+# ---------------------------------------------------------------------------
+# Suite 3: Input validation & normalization
+# ---------------------------------------------------------------------------
+
+echo ""
+info "--- Suite 3: Input validation & normalization ---"
+
+TMP3=$(mktemp -d)
+trap "rm -rf $TMP1 $TMP2A $TMP2B $TMP3" EXIT
+
+setup_install_dir "$TMP3"
+
+# Project name with uppercase + spaces → should be normalized to lowercase-with-hyphens
+if run_install "$TMP3" "My Cool App\nn\ny"; then
+  assert_file_contains "$TMP3" ".env" "PROJECT_NAME=my-cool-app" "3.1 Project name normalized (uppercase + spaces)"
+else
+  fail "3.1 install.sh failed with mixed-case project name"
 fi
 
 # ---------------------------------------------------------------------------
