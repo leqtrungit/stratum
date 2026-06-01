@@ -16,8 +16,8 @@ help:
 	@echo "  ps            Show container status"
 	@echo "  console       Open Hasura console in browser"
 	@echo ""
-	@echo "  test          Run all tests (smoke + install)"
-	@echo "  test-smoke    Verify running stack is healthy"
+	@echo "  test          Run all tests (install + rebuild stack + smoke)"
+	@echo "  test-smoke    Rebuild stack with latest code, then verify health"
 	@echo "  test-install  Verify install/bootstrap scripts produce correct output"
 
 # ---------------------------------------------------------------------------
@@ -54,6 +54,8 @@ console:
 test: test-install test-smoke
 
 test-smoke:
+	@echo "Rebuilding and restarting stack..."
+	@docker compose up --build -d
 	@bash tests/smoke/health-check.sh
 
 test-install:
