@@ -3,7 +3,7 @@
 # Unified interface for developers and AI agents.
 # =============================================================================
 
-.PHONY: up down reset logs console test test-core ps help
+.PHONY: up down reset logs console test test-core test-storage ps help
 
 # Default target
 help:
@@ -18,6 +18,7 @@ help:
 	@echo ""
 	@echo "  test          Run full integration tests (all scenarios)"
 	@echo "  test-core     Run core-only scenario only"
+	@echo "  test-storage  Run storage scenario only"
 
 # ---------------------------------------------------------------------------
 # Stack lifecycle
@@ -54,3 +55,6 @@ test:
 
 test-core:
 	@bash tests/integration/run.sh core
+
+test-storage:
+	@bash tests/integration/run.sh storage

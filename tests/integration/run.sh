@@ -103,7 +103,7 @@ wait_for_healthy() {
 
   info "  Waiting for $label..."
   while [[ $attempt -le $max ]]; do
-    container=$(docker ps --filter "name=$pattern" --filter "health=healthy" --format "{{.Names}}" | head -1)
+    container=$(docker ps --filter "name=$pattern" --filter "health=healthy" --format "{{.Names}}" 2>/dev/null | head -1 || true)
     if [[ -n "$container" ]]; then
       pass "$label healthy ($container)"
       return 0
@@ -113,10 +113,10 @@ wait_for_healthy() {
   done
 
   local status
-  status=$(docker ps -a --filter "name=$pattern" --format "{{.Names}} — {{.Status}}" | head -1)
+  status=$(docker ps -a --filter "name=$pattern" --format "{{.Names}} — {{.Status}}" 2>/dev/null | head -1 || true)
   fail "$label — timed out. Status: ${status:-not found}"
   local cname
-  cname=$(docker ps -a --filter "name=$pattern" --format "{{.Names}}" | head -1)
+  cname=$(docker ps -a --filter "name=$pattern" --format "{{.Names}}" 2>/dev/null | head -1 || true)
   [[ -n "$cname" ]] && docker logs "$cname" 2>&1 | tail -10 | sed 's/^/    /'
   return 1
 }
@@ -127,7 +127,7 @@ check_migrations() {
 
   while [[ $attempt -lt $max ]]; do
     local cname
-    cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" | head -1)
+    cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" 2>/dev/null | head -1 || true)
     status=$(docker inspect "$cname" --format "{{.State.Status}}" 2>/dev/null || echo "")
     [[ "$status" == "exited" ]] && break
     sleep 3
@@ -135,7 +135,7 @@ check_migrations() {
   done
 
   local cname
-  cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" | head -1)
+  cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" 2>/dev/null | head -1 || true)
   if [[ -z "$cname" ]]; then
     fail "Migrations — container not found"
     return
@@ -239,7 +239,7 @@ check_hasura_mutation_absent() {
 check_nestjs_endpoint() {
   local path="$1" label="$2"
   local cname
-  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
+  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" 2>/dev/null | head -1 || true)
   if [[ -z "$cname" ]]; then
     fail "$label — NestJS container not healthy"
     return
@@ -251,16 +251,16 @@ check_nestjs_endpoint() {
   fi
 }
 
-# Check NestJS endpoint returns 404 (route not registered)
+# Check NestJS POST endpoint returns 404 (route not registered)
 check_nestjs_action_absent() {
   local path="$1" label="$2"
   local cname code
-  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
+  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" 2>/dev/null | head -1 || true)
   if [[ -z "$cname" ]]; then
     fail "$label — NestJS container not healthy"
     return
   fi
-  code=$(docker exec "$cname" sh -c "wget --server-response -O /dev/null http://localhost:3000$path 2>&1 | grep 'HTTP/' | awk '{print \$2}' | head -1")
+  code=$(docker exec "$cname" sh -c "wget --server-response --post-data='{}' -O /dev/null http://localhost:3000$path 2>&1 | grep 'HTTP/' | awk '{print \$2}' | head -1")
   if [[ "$code" == "404" ]]; then
     pass "$label — $path correctly absent (404)"
   else
@@ -268,20 +268,20 @@ check_nestjs_action_absent() {
   fi
 }
 
-# Check NestJS endpoint returns 400/401/405 (route registered but auth-gated)
+# Check NestJS POST endpoint returns 400/401 (route registered but auth-gated)
 check_nestjs_action_registered() {
   local path="$1" label="$2"
   local cname code
-  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
+  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" 2>/dev/null | head -1 || true)
   if [[ -z "$cname" ]]; then
     fail "$label — NestJS container not healthy"
     return
   fi
-  code=$(docker exec "$cname" sh -c "wget --server-response -O /dev/null http://localhost:3000$path 2>&1 | grep 'HTTP/' | awk '{print \$2}' | head -1")
-  if [[ "$code" == "401" || "$code" == "400" || "$code" == "405" ]]; then
+  code=$(docker exec "$cname" sh -c "wget --server-response --post-data='{}' -O /dev/null http://localhost:3000$path 2>&1 | grep 'HTTP/' | awk '{print \$2}' | head -1")
+  if [[ "$code" == "401" || "$code" == "400" ]]; then
     pass "$label — $path registered (HTTP $code, auth-gated)"
   else
-    fail "$label — $path returned unexpected HTTP $code (expected 400/401/405)"
+    fail "$label — $path returned unexpected HTTP $code (expected 400/401)"
   fi
 }
 
@@ -365,6 +365,88 @@ run_core_scenario() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario: Full install (with storage)
+# ---------------------------------------------------------------------------
+
+run_storage_scenario() {
+  reset_scenario
+  echo ""
+  echo -e "${BLUE}============================================================${NC}"
+  echo -e "${BLUE}  SCENARIO: Full install (with storage)${NC}"
+  echo -e "${BLUE}============================================================${NC}"
+
+  # --- Setup: isolated temp dir ---
+  section "Setup"
+  setup_test_dir
+
+  info "  Running install.sh (with storage enabled)..."
+  (cd "$TEST_DIR" && echo -e "test-project\ny\ny" | bash install.sh > /dev/null 2>&1) || {
+    fail "install.sh failed"
+    cleanup
+    return 1
+  }
+  pass "install.sh completed"
+
+  # --- Verify install output ---
+  section "Install output"
+  [[ -f "$TEST_DIR/.env" ]]               && pass ".env created"               || fail ".env missing"
+  [[ -f "$TEST_DIR/docker-compose.yml" ]] && pass "docker-compose.yml created" || fail "docker-compose.yml missing"
+  grep -q "rustfs" "$TEST_DIR/docker-compose.yml" 2>/dev/null \
+    && pass "Storage service (rustfs) in docker-compose.yml" \
+    || fail "Storage service missing from docker-compose.yml"
+
+  # --- Start stack ---
+  section "Starting stack"
+  (cd "$TEST_DIR" && docker compose up --build -d 2>&1 | grep -E "Building|Built|Starting|Started|Running|Recreat" || true)
+  echo ""
+
+  load_admin_secret
+
+  # --- Container health ---
+  section "Container health"
+  wait_for_healthy "postgres" "PostgreSQL"
+  wait_for_healthy "hasura"   "Hasura"
+  wait_for_healthy "nestjs"   "NestJS"
+  wait_for_healthy "rustfs"   "RustFS"
+
+  # --- Migrations ---
+  section "Migrations"
+  check_migrations
+
+  # --- DB / Hasura schema ---
+  section "Database schema (via Hasura GraphQL)"
+  check_hasura_field_exists "users" "Storage: users table tracked"
+  check_hasura_field_exists "files" "Storage: files table tracked"
+
+  # --- Hasura actions ---
+  section "Hasura actions"
+  check_hasura_mutation_exists "requestUploadUrl" "Storage: requestUploadUrl exists"
+  check_hasura_mutation_exists "confirmUpload"    "Storage: confirmUpload exists"
+  check_hasura_mutation_exists "deleteFile"       "Storage: deleteFile exists"
+
+  # --- NestJS endpoints ---
+  section "NestJS endpoints"
+  check_nestjs_endpoint         "/health"                      "NestJS: GET /health"
+  check_nestjs_action_registered "/actions/request-upload-url" "NestJS: request-upload-url registered"
+  check_nestjs_action_registered "/actions/confirm-upload"     "NestJS: confirm-upload registered"
+  check_nestjs_action_registered "/actions/delete-file"        "NestJS: delete-file registered"
+
+  # --- Teardown ---
+  section "Teardown"
+  teardown
+  cleanup_test_dir
+  pass "Stack torn down, temp dir removed"
+
+  # --- Scenario summary ---
+  echo ""
+  if [[ $SCENARIO_FAIL -eq 0 ]]; then
+    echo -e "${GREEN}  ✓ SCENARIO PASSED: ${SCENARIO_PASS} checks${NC}"
+  else
+    echo -e "${RED}  ✗ SCENARIO FAILED: ${SCENARIO_PASS} passed, ${SCENARIO_FAIL} failed${NC}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -378,12 +460,15 @@ case "$SCENARIO" in
   core)
     run_core_scenario
     ;;
+  storage)
+    run_storage_scenario
+    ;;
   all)
     run_core_scenario
-    # run_storage_scenario  # TODO: implement
+    run_storage_scenario
     ;;
   *)
-    echo "Usage: $0 [core|all]"
+    echo "Usage: $0 [core|storage|all]"
     exit 1
     ;;
 esac
