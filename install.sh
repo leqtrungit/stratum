@@ -6,6 +6,12 @@
 
 set -e
 
+# Safety guard: must run from a directory that has the required project files
+if [[ ! -f ".env.example" || ! -d "hasura" || ! -f "docker-compose.base.yml" ]]; then
+  echo "Error: run install.sh from the project root (must contain .env.example, hasura/, docker-compose.base.yml)" >&2
+  exit 1
+fi
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -66,10 +72,16 @@ else
     
     # Use sed to delete lines between markers (inclusive)
     # This works on most Unix systems including macOS
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/actions.yaml
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/custom_types.yaml
-    sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' hasura/metadata/databases/default/tables/tables.yaml
-    
+    for meta_file in \
+        hasura/metadata/actions.yaml \
+        hasura/metadata/actions.graphql \
+        hasura/metadata/custom_types.yaml \
+        hasura/metadata/databases/default/tables/tables.yaml; do
+      if [[ -f "$meta_file" ]]; then
+        sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' "$meta_file"
+      fi
+    done
+
     # Delete storage migration and table metadata
     rm -rf hasura/migrations/default/*_files_table
     rm -f hasura/metadata/databases/default/tables/public_files.yaml
