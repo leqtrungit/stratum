@@ -77,7 +77,9 @@ else
         hasura/metadata/actions.graphql \
         hasura/metadata/custom_types.yaml \
         hasura/metadata/databases/default/tables/tables.yaml; do
-      [[ -f "$meta_file" ]] && sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' "$meta_file" || true
+      if [[ -f "$meta_file" ]]; then
+        sed -i.bak '/# STORAGE_START/,/# STORAGE_END/d' "$meta_file"
+      fi
     done
 
     # Delete storage migration and table metadata
