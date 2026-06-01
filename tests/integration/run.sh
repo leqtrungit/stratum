@@ -3,7 +3,7 @@
 # Stratum — Integration Test Runner
 # =============================================================================
 # Full end-to-end test: install → build → start → verify → teardown
-# Each scenario runs from a clean slate and tears down completely when done.
+# Each scenario runs in an isolated temp dir — repo root is never modified.
 #
 # Usage: bash tests/integration/run.sh [core|storage|all]
 #   core    — test minimal install (no storage)
@@ -34,35 +34,66 @@ info()    { echo -e "${YELLOW}$1${NC}"; }
 section() { echo ""; echo -e "${BLUE}--- $1 ---${NC}"; }
 
 # ---------------------------------------------------------------------------
+# Test dir isolation
+# Each scenario gets its own temp dir — a clean copy of the repo.
+# Repo root is never modified.
+# ---------------------------------------------------------------------------
+
+TEST_DIR=""
+ADMIN_SECRET=""
+
+setup_test_dir() {
+  TEST_DIR=$(mktemp -d)
+  info "  Copying project to isolated dir: $TEST_DIR"
+  rsync -a \
+    --exclude='.git' \
+    --exclude='node_modules' \
+    --exclude='tests/' \
+    --exclude='.env' \
+    --exclude='docker-compose.yml' \
+    "$PROJECT_ROOT/" "$TEST_DIR/"
+}
+
+cleanup_test_dir() {
+  if [[ -n "$TEST_DIR" && -d "$TEST_DIR" ]]; then
+    info "  Removing test dir..."
+    rm -rf "$TEST_DIR"
+    TEST_DIR=""
+  fi
+}
+
+# Tear down the docker stack that was started from TEST_DIR
+teardown() {
+  info "  Tearing down stack..."
+  if [[ -n "$TEST_DIR" && -f "$TEST_DIR/docker-compose.yml" ]]; then
+    docker compose -f "$TEST_DIR/docker-compose.yml" down -v --remove-orphans 2>/dev/null || true
+  fi
+}
+
+# Safety net: always teardown + remove temp dir on unexpected exit
+cleanup() {
+  teardown
+  cleanup_test_dir
+}
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 reset_scenario() {
   SCENARIO_PASS=0
   SCENARIO_FAIL=0
+  HASURA_SCHEMA_CACHE=""
+  ADMIN_SECRET=""
 }
 
-# Tear down stack completely — no leftovers
-teardown() {
-  info "  Tearing down stack..."
-  docker compose -f "$PROJECT_ROOT/docker-compose.yml" down -v --remove-orphans 2>/dev/null || true
-}
-
-# Restore metadata files modified by install.sh
-restore_metadata() {
-  info "  Restoring metadata from git..."
-  git -C "$PROJECT_ROOT" checkout -- \
-    hasura/metadata/ \
-    hasura/migrations/ \
-    docker-compose.yml \
-    .env \
-    2>/dev/null || true
-}
-
-# Full cleanup: teardown docker + restore files
-cleanup() {
-  teardown
-  restore_metadata
+# Load ADMIN_SECRET from the generated .env inside TEST_DIR
+load_admin_secret() {
+  if [[ -f "$TEST_DIR/.env" ]]; then
+    ADMIN_SECRET=$(grep '^HASURA_GRAPHQL_ADMIN_SECRET=' "$TEST_DIR/.env" | cut -d= -f2-)
+  else
+    ADMIN_SECRET=""
+  fi
 }
 
 # Wait for a container to report healthy (max 90s)
@@ -84,15 +115,25 @@ wait_for_healthy() {
   local status
   status=$(docker ps -a --filter "name=$pattern" --format "{{.Names}} — {{.Status}}" | head -1)
   fail "$label — timed out. Status: ${status:-not found}"
-  # Print logs to help debug
   local cname
   cname=$(docker ps -a --filter "name=$pattern" --format "{{.Names}}" | head -1)
   [[ -n "$cname" ]] && docker logs "$cname" 2>&1 | tail -10 | sed 's/^/    /'
   return 1
 }
 
-# Check that hasura-apply-migrations exited 0
+# Wait for migration container to exit, then check its exit code
 check_migrations() {
+  local attempt=0 max=20 status
+
+  while [[ $attempt -lt $max ]]; do
+    local cname
+    cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" | head -1)
+    status=$(docker inspect "$cname" --format "{{.State.Status}}" 2>/dev/null || echo "")
+    [[ "$status" == "exited" ]] && break
+    sleep 3
+    attempt=$((attempt + 1))
+  done
+
   local cname
   cname=$(docker ps -a --filter "name=hasura_apply_migrations" --format "{{.Names}}" | head -1)
   if [[ -z "$cname" ]]; then
@@ -109,31 +150,33 @@ check_migrations() {
   fi
 }
 
-# Load ADMIN_SECRET from generated .env
-load_admin_secret() {
-  if [[ -f "$PROJECT_ROOT/.env" ]]; then
-    ADMIN_SECRET=$(grep '^HASURA_GRAPHQL_ADMIN_SECRET=' "$PROJECT_ROOT/.env" | cut -d= -f2-)
-  else
-    ADMIN_SECRET=""
-  fi
-}
-
-# Run a GraphQL introspection against Hasura, with retry on empty response
-# Returns the full schema fields list (cached per call)
+# Run a GraphQL introspection against Hasura.
+# Retries until schema has at least 1 non-builtin tracked table (avoids caching empty schema).
 HASURA_SCHEMA_CACHE=""
 fetch_hasura_schema() {
   if [[ -n "$HASURA_SCHEMA_CACHE" ]]; then
     echo "$HASURA_SCHEMA_CACHE"
     return
   fi
-  local attempt=1 max=10 response
+  local attempt=1 max=20 response fields
   while [[ $attempt -le $max ]]; do
     response=$(curl -sf --max-time 5 \
       -H "Content-Type: application/json" \
       -H "X-Hasura-Admin-Secret: $ADMIN_SECRET" \
-      -d '{"query":"{ queryFields: __schema { queryType { fields { name } } } mutFields: __schema { mutationType { fields { name } } } }"}' \
+      -d '{"query":"{ __schema { queryType { fields { name } } mutationType { fields { name } } } }"}' \
       http://localhost:8080/v1/graphql 2>/dev/null) || true
-    if [[ -n "$response" ]] && echo "$response" | grep -q "queryFields"; then
+
+    fields=$(echo "$response" | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin)
+  qf=d['data']['__schema']['queryType']['fields']
+  print(len([f for f in qf if not f['name'].startswith('__')]))
+except:
+  print(0)
+" 2>/dev/null || echo "0")
+
+    if [[ "$fields" -gt 0 ]]; then
       HASURA_SCHEMA_CACHE="$response"
       echo "$response"
       return 0
@@ -141,10 +184,10 @@ fetch_hasura_schema() {
     sleep 3
     attempt=$((attempt + 1))
   done
-  echo ""  # empty = failed
+  echo ""  # empty = schema never populated
 }
 
-# Check that a GraphQL root field (table) EXISTS
+# Check that a GraphQL query field (tracked table) EXISTS
 check_hasura_field_exists() {
   local field="$1" label="$2"
   local response
@@ -156,7 +199,7 @@ check_hasura_field_exists() {
   fi
 }
 
-# Check that a GraphQL root field does NOT exist
+# Check that a GraphQL query field does NOT exist
 check_hasura_field_absent() {
   local field="$1" label="$2"
   local response
@@ -192,7 +235,7 @@ check_hasura_mutation_absent() {
   fi
 }
 
-# Check NestJS endpoint responds (via docker exec — port not exposed)
+# Check NestJS endpoint responds 200 (via docker exec — port not exposed to host)
 check_nestjs_endpoint() {
   local path="$1" label="$2"
   local cname
@@ -208,30 +251,7 @@ check_nestjs_endpoint() {
   fi
 }
 
-# Check NestJS endpoint returns 401/405 (exists but auth-gated)
-check_nestjs_action_registered() {
-  local path="$1" label="$2"
-  local cname code
-  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
-  if [[ -z "$cname" ]]; then
-    fail "$label — NestJS container not healthy"
-    return
-  fi
-  code=$(docker exec "$cname" wget -S -O /dev/null "http://localhost:3000$path" 2>&1 | grep "HTTP/" | awk '{print $2}' | head -1)
-  # 401 = endpoint exists but rejected (missing webhook secret) — that's correct
-  # 404 = endpoint not registered at all
-  if [[ "$code" == "401" || "$code" == "400" || "$code" == "405" ]]; then
-    pass "$label — $path registered (HTTP $code, auth-gated)"
-  elif [[ -z "$code" ]]; then
-    # wget exit code non-zero but we got a response — try curl
-    code=$(docker exec "$cname" sh -c "wget -S --server-response -O /dev/null http://localhost:3000$path 2>&1 | head -5" 2>/dev/null || echo "")
-    pass "$label — $path reachable (auth-gated)"
-  else
-    fail "$label — $path returned unexpected HTTP $code (expected 400/401/405)"
-  fi
-}
-
-# Check NestJS endpoint returns 404 (not registered)
+# Check NestJS endpoint returns 404 (route not registered)
 check_nestjs_action_absent() {
   local path="$1" label="$2"
   local cname code
@@ -248,6 +268,23 @@ check_nestjs_action_absent() {
   fi
 }
 
+# Check NestJS endpoint returns 400/401/405 (route registered but auth-gated)
+check_nestjs_action_registered() {
+  local path="$1" label="$2"
+  local cname code
+  cname=$(docker ps --filter "name=nestjs" --filter "health=healthy" --format "{{.Names}}" | head -1)
+  if [[ -z "$cname" ]]; then
+    fail "$label — NestJS container not healthy"
+    return
+  fi
+  code=$(docker exec "$cname" sh -c "wget --server-response -O /dev/null http://localhost:3000$path 2>&1 | grep 'HTTP/' | awk '{print \$2}' | head -1")
+  if [[ "$code" == "401" || "$code" == "400" || "$code" == "405" ]]; then
+    pass "$label — $path registered (HTTP $code, auth-gated)"
+  else
+    fail "$label — $path returned unexpected HTTP $code (expected 400/401/405)"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Scenario: Core-only install
 # ---------------------------------------------------------------------------
@@ -259,14 +296,12 @@ run_core_scenario() {
   echo -e "${BLUE}  SCENARIO: Core-only install (no storage)${NC}"
   echo -e "${BLUE}============================================================${NC}"
 
-  # --- Setup ---
+  # --- Setup: isolated temp dir ---
   section "Setup"
-  info "  Cleaning up any previous state..."
-  teardown
-  restore_metadata
+  setup_test_dir
 
-  info "  Running install.sh (core-only)..."
-  (cd "$PROJECT_ROOT" && echo -e "test-project\nn\ny" | bash install.sh > /dev/null 2>&1) || {
+  info "  Running install.sh (core-only, no storage)..."
+  (cd "$TEST_DIR" && echo -e "test-project\nn\ny" | bash install.sh > /dev/null 2>&1) || {
     fail "install.sh failed"
     cleanup
     return 1
@@ -275,15 +310,15 @@ run_core_scenario() {
 
   # --- Verify install output ---
   section "Install output"
-  [[ -f "$PROJECT_ROOT/.env" ]]               && pass ".env created"          || fail ".env missing"
-  [[ -f "$PROJECT_ROOT/docker-compose.yml" ]] && pass "docker-compose.yml created" || fail "docker-compose.yml missing"
-  ! grep -q "garage\|rustfs" "$PROJECT_ROOT/docker-compose.yml" 2>/dev/null \
+  [[ -f "$TEST_DIR/.env" ]]               && pass ".env created"               || fail ".env missing"
+  [[ -f "$TEST_DIR/docker-compose.yml" ]] && pass "docker-compose.yml created" || fail "docker-compose.yml missing"
+  ! grep -q "garage\|rustfs" "$TEST_DIR/docker-compose.yml" 2>/dev/null \
     && pass "No storage services in docker-compose.yml" \
     || fail "Storage services found in core-only docker-compose.yml"
 
   # --- Start stack ---
   section "Starting stack"
-  (cd "$PROJECT_ROOT" && docker compose up --build -d 2>&1 | grep -E "Building|Built|Starting|Started|Running|Recreat" || true)
+  (cd "$TEST_DIR" && docker compose up --build -d 2>&1 | grep -E "Building|Built|Starting|Started|Running|Recreat" || true)
   echo ""
 
   load_admin_secret
@@ -296,25 +331,12 @@ run_core_scenario() {
 
   # --- Migrations ---
   section "Migrations"
-  # Give migration container time to finish
-  local attempt=0
-  while [[ $attempt -lt 20 ]]; do
-    local code
-    code=$(docker inspect "$(docker ps -a --filter 'name=hasura_apply_migrations' --format '{{.Names}}' | head -1)" \
-           --format "{{.State.Status}}" 2>/dev/null || echo "")
-    [[ "$code" == "exited" ]] && break
-    sleep 3
-    attempt=$((attempt + 1))
-  done
   check_migrations
 
   # --- DB / Hasura schema ---
   section "Database schema (via Hasura GraphQL)"
-  HASURA_SCHEMA_CACHE=""  # reset cache for this scenario
-  info "  Waiting for Hasura schema to stabilize..."
-  sleep 5
-  check_hasura_field_exists  "users"          "Core: users table tracked"
-  check_hasura_field_absent  "files"          "Core: files table absent"
+  check_hasura_field_exists "users" "Core: users table tracked"
+  check_hasura_field_absent "files" "Core: files table absent"
 
   # --- Hasura actions ---
   section "Hasura actions"
@@ -324,14 +346,14 @@ run_core_scenario() {
 
   # --- NestJS endpoints ---
   section "NestJS endpoints"
-  check_nestjs_endpoint "/health" "NestJS: GET /health"
+  check_nestjs_endpoint      "/health"                      "NestJS: GET /health"
   check_nestjs_action_absent "/actions/request-upload-url" "NestJS: storage actions absent"
 
   # --- Teardown ---
   section "Teardown"
   teardown
-  restore_metadata
-  pass "Stack torn down, metadata restored"
+  cleanup_test_dir
+  pass "Stack torn down, temp dir removed"
 
   # --- Scenario summary ---
   echo ""
@@ -366,7 +388,7 @@ case "$SCENARIO" in
     ;;
 esac
 
-# Disable trap (we already cleaned up)
+# Disable trap (already cleaned up)
 trap - EXIT
 
 echo ""
