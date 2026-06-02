@@ -10,3 +10,23 @@
 - [x] W3: Add Action test workflow to `docs/adding-resolvers.md` (how to call from GraphQL client, how to debug)
 - [x] W4: `docs/authentication.md` — JWT claims structure, session variables flow, login pattern
 - [x] W5: Document `HasuraWebhookGuard` scope — which handlers need it and why
+
+## Planned: bootstrap.sh — `template/` directory separation
+
+**Problem:** `bootstrap.sh` hiện dùng hardcoded exclude list (`STRATUM_INTERNAL`) để xóa file internal khỏi project của user. Dev thêm file internal mới sẽ không biết phải update list này.
+
+**Solution:** Dùng thư mục `template/` — bootstrap chỉ lấy những gì bên trong đó, mọi thứ ngoài tự động excluded. Không cần maintain list.
+
+```
+stratum/
+├── template/       ← CHỈ cái này đến tay user
+│   ├── hasura/
+│   ├── nestjs/
+│   ├── docs/
+│   └── ...
+├── .github/        ← tự động excluded
+├── tests/          ← tự động excluded
+└── bootstrap.sh    ← tự động excluded
+```
+
+**Scope:** restructure repo, update `bootstrap.sh` để extract từ `template/` thay vì root.
