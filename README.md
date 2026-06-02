@@ -116,8 +116,9 @@ stratum/
 | PostgreSQL + Hasura + NestJS | ✅ Core | Always included |
 | S3 Object Storage (RustFS) | 🔧 Optional | Selected during `./install.sh` — swappable with any S3-compatible service |
 | JWT Authentication | ✅ Included | JWT validation in Hasura + session variables forwarded to NestJS |
-| PgBouncer Connection Pooling | 🗓️ Planned | Roadmap item |
-| GitHub Actions CI Template | 🗓️ Planned | Roadmap item |
+| GitHub Actions CI | ✅ Included | Unit tests + integration tests (core & storage) |
+| Branch Protection | ✅ Included | PR required, status checks enforced on `main` |
+| PgBouncer Connection Pooling | 🗓️ Planned | |
 
 ---
 
@@ -149,12 +150,13 @@ stratum/
 - [x] Auto-generated `.env` with secrets
 - [x] README and core docs (architecture, tables, resolvers, auth, storage, feature guide)
 - [x] `make` targets: `up`, `down`, `reset`, `console`
+- [x] GitHub Actions CI (unit tests + integration tests)
+- [x] Branch protection on `main` (PR required, status checks enforced)
 
 ### v0.3 — Production Hardened
 - [ ] Health check endpoints (`/health`, `/ready`)
 - [ ] Hasura connection pooling config
 - [ ] Docker resource limits
-- [ ] GitHub Actions CI template
 - [ ] Contributing guide
 
 ---
