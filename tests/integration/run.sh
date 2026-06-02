@@ -318,7 +318,7 @@ run_core_scenario() {
 
   # --- Start stack ---
   section "Starting stack"
-  (cd "$TEST_DIR" && BUILDKIT_PROGRESS=plain docker compose up --build -d) || true
+  (cd "$TEST_DIR" && docker compose up --build -d) || true
   echo ""
 
   load_admin_secret
@@ -397,7 +397,7 @@ run_storage_scenario() {
 
   # --- Start stack ---
   section "Starting stack"
-  (cd "$TEST_DIR" && BUILDKIT_PROGRESS=plain docker compose up --build -d) || true
+  (cd "$TEST_DIR" && docker compose up --build -d) || true
   echo ""
 
   load_admin_secret
