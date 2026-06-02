@@ -301,7 +301,7 @@ run_core_scenario() {
   setup_test_dir
 
   info "  Running install.sh (core-only, no storage)..."
-  (cd "$TEST_DIR" && echo -e "test-project\nn\ny" | bash install.sh > /dev/null 2>&1) || {
+  (cd "$TEST_DIR" && echo -e "test-project\nn\ny" | bash install.sh > /dev/null) || {
     fail "install.sh failed"
     cleanup
     return 1
@@ -318,7 +318,7 @@ run_core_scenario() {
 
   # --- Start stack ---
   section "Starting stack"
-  (cd "$TEST_DIR" && docker compose up --build -d 2>&1 | grep -E "Building|Built|Starting|Started|Running|Recreat" || true)
+  (cd "$TEST_DIR" && docker compose up --build -d) || true
   echo ""
 
   load_admin_secret
@@ -380,7 +380,7 @@ run_storage_scenario() {
   setup_test_dir
 
   info "  Running install.sh (with storage enabled)..."
-  (cd "$TEST_DIR" && echo -e "test-project\ny\ny" | bash install.sh > /dev/null 2>&1) || {
+  (cd "$TEST_DIR" && echo -e "test-project\ny\ny" | bash install.sh > /dev/null) || {
     fail "install.sh failed"
     cleanup
     return 1
@@ -397,7 +397,7 @@ run_storage_scenario() {
 
   # --- Start stack ---
   section "Starting stack"
-  (cd "$TEST_DIR" && docker compose up --build -d 2>&1 | grep -E "Building|Built|Starting|Started|Running|Recreat" || true)
+  (cd "$TEST_DIR" && docker compose up --build -d) || true
   echo ""
 
   load_admin_secret
