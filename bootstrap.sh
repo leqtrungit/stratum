@@ -82,9 +82,10 @@ cd "$PROJECT_DIR"
 bash install.sh </dev/tty
 
 # ── Post-install cleanup ──────────────────────────────────────────────────────
-# .template/ is only needed during install.sh (storage overlay). Remove it now.
+# These are install-time scaffolding — not needed after docker-compose.yml is generated.
 
 rm -rf .template
+rm -f docker-compose.base.yml docker-compose.storage.yml install.sh
 
 # ── Initialize fresh git history ─────────────────────────────────────────────
 # Do this last so the single initial commit reflects the fully configured project.
