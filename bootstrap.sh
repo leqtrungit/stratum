@@ -8,6 +8,20 @@ set -euo pipefail
 REPO="leqtrungit/stratum"
 DEFAULT_DIR="my-project"
 
+# Files/dirs that belong to Stratum's own development — not part of a user project.
+STRATUM_INTERNAL=(
+  .agents          # AI agent skills and rules
+  .claude          # Claude Code session data
+  .github          # Stratum's CI workflows (depend on tests/ which is also removed)
+  AGENTS.md        # AI orchestration instructions
+  CLAUDE.md        # Claude Code project config
+  bootstrap.sh     # Self-remove: used once to scaffold, not needed after
+  plan.md          # Stratum project planning
+  skills-lock.json # Claude Code internal
+  tasks            # Stratum task tracking
+  tests            # Stratum integration tests (stratum-specific, not for user projects)
+)
+
 # ── Project directory ─────────────────────────────────────────────────────────
 # stdin may be the curl pipe, so always read from /dev/tty for user prompts.
 
@@ -50,22 +64,35 @@ curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMP_DIR"
 EXTRACTED=$(ls "$TMP_DIR")
 mv "$TMP_DIR/$EXTRACTED" "$PROJECT_DIR"
 
-# ── Fresh git history ─────────────────────────────────────────────────────────
+# ── Remove Stratum-internal files ─────────────────────────────────────────────
 
-(
-  cd "$PROJECT_DIR"
-  rm -rf .git
-  git init -q
-  git add .
-  git commit -q -m "Initial commit from Stratum"
-)
+for item in "${STRATUM_INTERNAL[@]}"; do
+  rm -rf "${PROJECT_DIR:?}/$item"
+done
 
 echo ""
 echo "Project '$PROJECT_DIR' created. Running setup..."
 echo ""
 
-# ── Delegate to install.sh ────────────────────────────────────────────────────
-# Restore stdin from the terminal (curl pipe stole it) so install.sh prompts work.
+# ── Run install.sh ────────────────────────────────────────────────────────────
+# Use bash (not exec) so control returns here for post-install cleanup.
+# Restore stdin from the terminal — curl pipe stole it.
 
 cd "$PROJECT_DIR"
-exec bash install.sh </dev/tty
+bash install.sh </dev/tty
+
+# ── Post-install cleanup ──────────────────────────────────────────────────────
+# .template/ is only needed during install.sh (storage overlay). Remove it now.
+
+rm -rf .template
+
+# ── Initialize fresh git history ─────────────────────────────────────────────
+# Do this last so the single initial commit reflects the fully configured project.
+
+rm -rf .git
+git init -q
+git add .
+git commit -q -m "Initial commit from Stratum"
+
+echo ""
+echo "Done! Next: cd $PROJECT_DIR && docker compose up -d"
