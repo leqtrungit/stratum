@@ -24,29 +24,38 @@ echo -e "${BLUE}  Stratum — Backend Boilerplate Setup${NC}"
 echo -e "${BLUE}=============================================================================${NC}"
 
 # 1. Project Name
-while true; do
-  read -p "Enter project name [stratum]: " PROJECT_NAME
-  PROJECT_NAME=${PROJECT_NAME:-stratum}
-  # Normalize: lowercase, spaces → hyphens, strip non-alphanumeric except hyphens
-  PROJECT_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9-]//g')
-  if [[ -z "$PROJECT_NAME" ]]; then
-    echo -e "${RED}Project name cannot be empty or contain only special characters.${NC}"
-  elif [[ ! "$PROJECT_NAME" =~ ^[a-z] ]]; then
-    echo -e "${RED}Project name must start with a lowercase letter.${NC}"
-  else
-    break
-  fi
-done
+_NI=${STRATUM_PROJECT_NAME:+1}
+if [ -n "${STRATUM_PROJECT_NAME:-}" ]; then
+  PROJECT_NAME=$(echo "$STRATUM_PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9-]//g')
+else
+  while true; do
+    read -p "Enter project name [stratum]: " PROJECT_NAME
+    PROJECT_NAME=${PROJECT_NAME:-stratum}
+    # Normalize: lowercase, spaces → hyphens, strip non-alphanumeric except hyphens
+    PROJECT_NAME=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g' | sed 's/[^a-z0-9-]//g')
+    if [[ -z "$PROJECT_NAME" ]]; then
+      echo -e "${RED}Project name cannot be empty or contain only special characters.${NC}"
+    elif [[ ! "$PROJECT_NAME" =~ ^[a-z] ]]; then
+      echo -e "${RED}Project name must start with a lowercase letter.${NC}"
+    else
+      break
+    fi
+  done
+fi
 
 # 2. Enable Storage
-while true; do
-  read -p "Enable RustFS S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
-  ENABLE_STORAGE=${ENABLE_STORAGE:-n}
-  case "$ENABLE_STORAGE" in
-    y|Y|n|N) break ;;
-    *) echo -e "${RED}Please enter y or n.${NC}" ;;
-  esac
-done
+if [ -n "${STRATUM_STORAGE:-}" ]; then
+  ENABLE_STORAGE="$STRATUM_STORAGE"
+else
+  while true; do
+    read -p "Enable RustFS S3 Object Storage? (y/n) [n]: " ENABLE_STORAGE
+    ENABLE_STORAGE=${ENABLE_STORAGE:-n}
+    case "$ENABLE_STORAGE" in
+      y|Y|n|N) break ;;
+      *) echo -e "${RED}Please enter y or n.${NC}" ;;
+    esac
+  done
+fi
 
 # 3. Confirm
 echo ""
@@ -54,11 +63,13 @@ echo -e "${BLUE}Summary:${NC}"
 echo -e "  Project name : ${YELLOW}$PROJECT_NAME${NC}"
 echo -e "  Storage      : ${YELLOW}$([[ "$ENABLE_STORAGE" =~ ^[yY]$ ]] && echo enabled || echo disabled)${NC}"
 echo ""
-read -p "Proceed with setup? (y/n) [y]: " CONFIRM
-CONFIRM=${CONFIRM:-y}
-if [[ ! "$CONFIRM" =~ ^[yY]$ ]]; then
-  echo "Aborted."
-  exit 0
+if [ -z "${_NI:-}" ]; then
+  read -p "Proceed with setup? (y/n) [y]: " CONFIRM
+  CONFIRM=${CONFIRM:-y}
+  if [[ ! "$CONFIRM" =~ ^[yY]$ ]]; then
+    echo "Aborted."
+    exit 0
+  fi
 fi
 
 # 4. Generate Secrets
@@ -100,8 +111,10 @@ if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
 
     # 7. Generate docker-compose.yml (Merged)
     echo -e "${YELLOW}Generating merged docker-compose.yml with storage...${NC}"
-    # Use docker compose config to merge files properly
-    # We pass the newly created .env to ensure required variables are present
+    if ! docker info >/dev/null 2>&1; then
+      echo -e "${RED}Error: Docker daemon is not running. Please start Docker and re-run install.sh.${NC}" >&2
+      exit 1
+    fi
     docker compose --env-file .env -f docker-compose.base.yml -f docker-compose.storage.yml config > docker-compose.yml
 else
     cp docker-compose.base.yml docker-compose.yml

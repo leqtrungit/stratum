@@ -218,8 +218,62 @@ sequenceDiagram
 
 ---
 
+## 5. Install Flow
 
-## 5. Security Model
+Mô tả quá trình từ khi user chạy `curl | bash` đến khi project sẵn sàng.
+**Diagram này phải được cập nhật khi `bootstrap.sh` hoặc `install.sh` thay đổi logic.**
+
+```mermaid
+flowchart TD
+    A(["User: curl ...bootstrap.sh | bash\n(hoặc bash -s -- my-project)"])
+
+    A --> B{Arg\npassed?}
+    B -->|"bash -s -- my-project"| D
+    B -->|"pipe mode"| C["Prompt: project dir name\n(đọc từ /dev/tty)"]
+    C --> D["PROJECT_DIR = input | 'my-project'"]
+
+    D --> E{Dir đã\ntồn tại?}
+    E -->|yes| FAIL1["❌ Error: directory exists\n(trap dọn PROJECT_DIR)"]
+    E -->|no| F["Resolve version:\nGitHub releases API"]
+
+    F --> G{Có release\ntag?}
+    G -->|yes| H["Download tarball tag\ne.g. v1.0.0.tar.gz"]
+    G -->|no| I["Download từ main\n(fallback)"]
+
+    H & I --> J["Extract → PROJECT_DIR\ntar --strip-components=1"]
+    J --> K["Xóa STRATUM_INTERNAL files\n(.agents, .github, tests, tasks…)"]
+    K --> L{"/dev/tty\navailable?"}
+
+    subgraph install ["install.sh"]
+        L -->|yes| M1["Interactive prompts\n← /dev/tty"]
+        L -->|no| M2["Non-interactive\nSTRATUM_PROJECT_NAME + STRATUM_STORAGE env vars"]
+        M1 & M2 --> N["Project name\n+ Storage? y/n\n+ Confirm"]
+
+        N --> O["Generate secrets\nadmin / JWT / event / DB / S3"]
+        O --> P["Tạo .env\ntừ .env.example + sed"]
+
+        P --> Q{Storage\nenabled?}
+
+        Q -->|yes| R1["Apply .template/storage overlay"]
+        R1 --> R2{Docker\ndaemon up?}
+        R2 -->|no| FAIL2["❌ Error: Docker not running"]
+        R2 -->|yes| R3["docker compose config\nmerge base + storage\n→ docker-compose.yml"]
+
+        Q -->|no| S1["cp docker-compose.base.yml\n→ docker-compose.yml"]
+        S1 --> S2["Strip STORAGE_START…END\nkhỏi hasura metadata"]
+        S2 --> S3["Xóa storage migration\n+ public_files.yaml"]
+    end
+
+    R3 & S3 --> T["Cleanup install scaffolding\nrm .template, install.sh\ndocker-compose.base.yml, .storage.yml"]
+
+    T --> U["git init\ngit add .\ngit commit 'Initial commit from Stratum'\n(identity hardcoded → không cần git config)"]
+
+    U --> V(["✅ Done!\ncd PROJECT_DIR && docker compose up -d"])
+```
+
+---
+
+## 6. Security Model
 
 | Concern | Approach |
 |---|---|
@@ -234,7 +288,7 @@ sequenceDiagram
 
 ---
 
-## 6. Technology Decisions
+## 7. Technology Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
@@ -248,7 +302,7 @@ sequenceDiagram
 
 ---
 
-## 7. Port Reference
+## 8. Port Reference
 
 | Service | Exposed To | Port | Notes |
 |---|---|---|---|
@@ -260,7 +314,7 @@ sequenceDiagram
 
 ---
 
-## 8. Environment Overview
+## 9. Environment Overview
 
 Stratum supports three target environments, configured during `./install.sh`:
 
