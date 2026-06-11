@@ -56,13 +56,15 @@ fi
 
 # ── Download & extract ────────────────────────────────────────────────────────
 
+_OK=0
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
+trap '
+  rm -rf "$TMP_DIR"
+  [ "$_OK" = "0" ] && [ -n "${PROJECT_DIR:-}" ] && rm -rf "$PROJECT_DIR"
+' EXIT
 
-curl -fsSL "$TARBALL_URL" | tar -xz -C "$TMP_DIR"
-
-EXTRACTED=$(ls "$TMP_DIR")
-mv "$TMP_DIR/$EXTRACTED" "$PROJECT_DIR"
+mkdir -p "$PROJECT_DIR"
+curl -fsSL "$TARBALL_URL" | tar -xz -C "$PROJECT_DIR" --strip-components=1
 
 # ── Remove Stratum-internal files ─────────────────────────────────────────────
 
@@ -79,7 +81,11 @@ echo ""
 # Restore stdin from the terminal — curl pipe stole it.
 
 cd "$PROJECT_DIR"
-bash install.sh </dev/tty
+if [ -c /dev/tty ]; then
+  bash install.sh </dev/tty
+else
+  STRATUM_PROJECT_NAME="$PROJECT_DIR" STRATUM_STORAGE="n" bash install.sh
+fi
 
 # ── Post-install cleanup ──────────────────────────────────────────────────────
 # These are install-time scaffolding — not needed after docker-compose.yml is generated.
@@ -93,7 +99,8 @@ rm -f docker-compose.base.yml docker-compose.storage.yml install.sh
 rm -rf .git
 git init -q
 git add .
-git commit -q -m "Initial commit from Stratum"
+git -c user.email="setup@stratum.local" -c user.name="Stratum" commit -q -m "Initial commit from Stratum"
 
+_OK=1
 echo ""
 echo "Done! Next: cd $PROJECT_DIR && docker compose up -d"
