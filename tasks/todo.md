@@ -1,15 +1,27 @@
 # Backlog
 
-## Code Fixes
-- [x] M2: Register storage actions into `hasura/metadata/actions.yaml` + `actions.graphql` (already done in Phase 2)
-- [x] M3: Fix `nestjs/codegen.ts` hardcoded `localhost:8080` → read from env `HASURA_GRAPHQL_ENDPOINT`
+## v1.0 Release Checklist
 
-## Docs To Write
-- [x] W1: `docs/adding-feature.md` — end-to-end guide: migration → permissions → NestJS handler → Hasura action → test
-- [x] W2: Add Event Trigger setup section to `docs/adding-resolvers.md` (Console setup, local test, debug)
-- [x] W3: Add Action test workflow to `docs/adding-resolvers.md` (how to call from GraphQL client, how to debug)
-- [x] W4: `docs/authentication.md` — JWT claims structure, session variables flow, login pattern
-- [x] W5: Document `HasuraWebhookGuard` scope — which handlers need it and why
+### Blocking
+
+- [ ] **R1: Fix bootstrap.sh bugs** (từ code review)
+  - `trap` không dọn `PROJECT_DIR` khi lỗi giữa chừng → user bị kẹt khi re-run
+  - `bash install.sh </dev/tty` crash trên CI / môi trường không có `/dev/tty`
+  - `git commit` fail trên máy chưa cấu hình `user.name`/`user.email`
+  - `EXTRACTED=$(ls "$TMP_DIR")` vỡ nếu tarball extract ra nhiều entry (fix: dùng `tar --strip-components=1`)
+  - `install.sh:105` không có fallback khi Docker daemon chưa bật (storage path)
+- [x] **R2: Tắt dev-mode settings trong docker-compose** — `HASURA_GRAPHQL_DEV_MODE=true` và `HASURA_GRAPHQL_ENABLE_CONSOLE=true` không được bật khi deploy production; document rõ hoặc tách `.env.prod`
+- [x] **R3: Mở rộng health endpoint** — `GET /health` hiện chỉ trả `{status: "ok"}`, không verify Hasura hay DB còn sống; thêm dependency health check
+- [ ] **R4: Thêm release workflow vào CI** — tạo job tự động tag + publish GitHub Release khi merge vào main
+- [ ] **R5: Publish tag v1.0.0 + GitHub Release** — hiện bootstrap.sh luôn fallback về `main` vì chưa có release nào; user không có version pinning
+
+### Nice-to-have
+
+- [ ] **R6: `template/` directory separation** (xem section bên dưới) — giải quyết trước khi user base lớn
+- [ ] **R7: Thêm lint job vào CI** — ESLint đã cấu hình nhưng không được enforce trong pipeline
+- [ ] **R8: CONTRIBUTING.md + TROUBLESHOOTING.md** — người dùng gặp lỗi không biết báo ở đâu
+
+---
 
 ## Planned: bootstrap.sh — `template/` directory separation
 
