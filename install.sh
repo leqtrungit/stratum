@@ -139,6 +139,9 @@ else
     rm -f hasura/metadata/databases/default/tables/public_files.yaml
 fi
 
+# Write hasura/.env for local Hasura CLI usage (make hasura-console)
+echo "HASURA_GRAPHQL_ADMIN_SECRET=$ADMIN_SECRET" > hasura/.env
+
 # Clean up .bak files from sed
 find . -name "*.bak" -delete
 
@@ -147,9 +150,11 @@ echo -e "${GREEN}  Setup Complete!${NC}"
 echo -e "${GREEN}=============================================================================${NC}"
 echo -e ""
 echo -e "Next steps:"
-echo -e "  1. Run: ${YELLOW}docker compose up -d${NC}"
+echo -e "  1. Run: ${YELLOW}make dev${NC}               (local dev with hot reload)"
+echo -e "     Or:  ${YELLOW}docker compose up -d${NC}   (production mode)"
 echo -e "  2. Access Hasura: ${YELLOW}http://localhost:8080${NC}"
+echo -e "  3. Schema changes: ${YELLOW}make hasura-console${NC} (tracks changes to files)"
 if [[ "$ENABLE_STORAGE" == "y" || "$ENABLE_STORAGE" == "Y" ]]; then
-echo -e "  3. Access RustFS Console: ${YELLOW}http://localhost:9001${NC}"
+echo -e "  4. Access RustFS Console: ${YELLOW}http://localhost:9001${NC}"
 fi
 echo -e ""

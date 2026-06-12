@@ -103,4 +103,7 @@ git -c user.email="setup@stratum.local" -c user.name="Stratum" commit -q -m "Ini
 
 _OK=1
 echo ""
-echo "Done! Next: cd $PROJECT_DIR && docker compose up -d"
+echo "Done! Next:"
+echo "  cd $PROJECT_DIR"
+echo "  make dev               # local dev (hot reload, ports exposed)"
+echo "  make hasura-console    # Hasura CLI console (tracks schema changes to files)"

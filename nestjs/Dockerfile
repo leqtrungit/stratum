@@ -1,4 +1,24 @@
 # =============================================================================
+# Stage 0: Development (hot reload via mounted source)
+# =============================================================================
+FROM node:24-alpine AS development
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml .npmrc ./
+
+RUN pnpm install
+
+ENV NODE_ENV=development
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["pnpm", "run", "start:dev"]
+
+# =============================================================================
 # Stage 1: Build
 # =============================================================================
 FROM node:24-alpine AS builder
