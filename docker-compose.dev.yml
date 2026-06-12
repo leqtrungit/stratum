@@ -1,0 +1,20 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  hasura:
+    environment:
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+
+  nestjs:
+    build:
+      target: development
+    volumes:
+      - ./nestjs:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
