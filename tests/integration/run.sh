@@ -59,7 +59,8 @@ setup_test_dir() {
 cleanup_test_dir() {
   if [[ -n "$TEST_DIR" && -d "$TEST_DIR" ]]; then
     info "  Removing test dir..."
-    rm -rf "$TEST_DIR"
+    # Dev container mounts ./nestjs as root — fall back to sudo if plain rm fails
+    rm -rf "$TEST_DIR" 2>/dev/null || sudo rm -rf "$TEST_DIR" 2>/dev/null || true
     TEST_DIR=""
   fi
 }
