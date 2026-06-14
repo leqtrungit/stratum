@@ -4,7 +4,8 @@
 # =============================================================================
 
 .PHONY: up down reset logs console ps help \
-        dev dev-down dev-logs dev-reset hasura-console
+        dev dev-down dev-logs dev-reset hasura-console \
+        test test-core test-storage test-dev
 
 DEV_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
@@ -24,9 +25,10 @@ help:
 	@echo "  dev-reset     Full dev reset (removes volumes)"
 	@echo "  hasura-console  Open Hasura CLI console (tracks schema changes to files)"
 	@echo ""
-	@echo "  test          Run full integration tests (all scenarios)"
-	@echo "  test-core     Run core-only scenario only"
-	@echo "  test-storage  Run storage scenario only"
+	@echo "  test          Run full integration tests (core + storage)"
+	@echo "  test-core     Run core-only scenario"
+	@echo "  test-storage  Run storage scenario"
+	@echo "  test-dev      Run dev stack scenario"
 
 # ---------------------------------------------------------------------------
 # Production stack
@@ -87,3 +89,6 @@ test-core:
 
 test-storage:
 	@bash tests/integration/run.sh storage
+
+test-dev:
+	@bash tests/integration/run.sh dev

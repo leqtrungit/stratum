@@ -154,6 +154,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Suite 4: hasura/.env generation
+# ---------------------------------------------------------------------------
+
+echo ""
+info "--- Suite 4: hasura/.env generation ---"
+
+TMP4=$(mktemp -d)
+trap "rm -rf $TMP1 $TMP2A $TMP2B $TMP3 $TMP4" EXIT
+
+setup_install_dir "$TMP4"
+
+if run_install "$TMP4" "test-project\nn\ny"; then
+  assert_file_exists   "$TMP4" "hasura/.env" "4.1 hasura/.env created"
+  assert_file_contains "$TMP4" "hasura/.env" "HASURA_GRAPHQL_ADMIN_SECRET=" "4.1 hasura/.env has admin secret"
+
+  SECRET_ENV=$(grep '^HASURA_GRAPHQL_ADMIN_SECRET=' "$TMP4/.env"          | cut -d= -f2-)
+  SECRET_HASURA=$(grep '^HASURA_GRAPHQL_ADMIN_SECRET=' "$TMP4/hasura/.env" | cut -d= -f2-)
+  if [[ -n "$SECRET_ENV" && "$SECRET_ENV" == "$SECRET_HASURA" ]]; then
+    pass "4.1 hasura/.env secret matches .env"
+  else
+    fail "4.1 hasura/.env secret does not match .env"
+  fi
+else
+  fail "4.1 install.sh failed (suite 4)"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

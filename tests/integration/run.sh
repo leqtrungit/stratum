@@ -5,10 +5,11 @@
 # Full end-to-end test: install → build → start → verify → teardown
 # Each scenario runs in an isolated temp dir — repo root is never modified.
 #
-# Usage: bash tests/integration/run.sh [core|storage|all]
+# Usage: bash tests/integration/run.sh [core|storage|dev|all]
 #   core    — test minimal install (no storage)
 #   storage — test full install (with storage)
-#   all     — run all scenarios (default)
+#   dev     — test dev stack (hot reload, exposed ports, Hasura console)
+#   all     — run core + storage scenarios (default)
 # =============================================================================
 
 set -euo pipefail
@@ -41,6 +42,7 @@ section() { echo ""; echo -e "${BLUE}--- $1 ---${NC}"; }
 
 TEST_DIR=""
 ADMIN_SECRET=""
+COMPOSE_EXTRA_FILES=()
 
 setup_test_dir() {
   TEST_DIR=$(mktemp -d)
@@ -63,10 +65,11 @@ cleanup_test_dir() {
 }
 
 # Tear down the docker stack that was started from TEST_DIR
+# Uses COMPOSE_EXTRA_FILES for dev scenario overlay support
 teardown() {
   info "  Tearing down stack..."
   if [[ -n "$TEST_DIR" && -f "$TEST_DIR/docker-compose.yml" ]]; then
-    docker compose -f "$TEST_DIR/docker-compose.yml" down -v --remove-orphans 2>/dev/null || true
+    docker compose -f "$TEST_DIR/docker-compose.yml" "${COMPOSE_EXTRA_FILES[@]}" down -v --remove-orphans 2>/dev/null || true
   fi
 }
 
@@ -85,6 +88,7 @@ reset_scenario() {
   SCENARIO_FAIL=0
   HASURA_SCHEMA_CACHE=""
   ADMIN_SECRET=""
+  COMPOSE_EXTRA_FILES=()
 }
 
 # Load ADMIN_SECRET from the generated .env inside TEST_DIR
@@ -285,6 +289,48 @@ check_nestjs_action_registered() {
   fi
 }
 
+# Check that a TCP port is open on localhost from the host
+check_host_port() {
+  local port="$1" label="$2"
+  if nc -z localhost "$port" 2>/dev/null; then
+    pass "$label — localhost:$port reachable from host"
+  else
+    fail "$label — localhost:$port not reachable from host"
+  fi
+}
+
+# Check NestJS /health via host-exposed port (dev mode only)
+check_nestjs_from_host() {
+  if curl -sf --max-time 5 http://localhost:3000/health > /dev/null 2>&1; then
+    pass "NestJS /health reachable from host (localhost:3000)"
+  else
+    fail "NestJS /health not reachable from host (localhost:3000)"
+  fi
+}
+
+# Check Hasura console is enabled (returns 200, not 404)
+check_hasura_console_enabled() {
+  local code
+  code=$(curl -so /dev/null -w "%{http_code}" --max-time 5 http://localhost:8080/console 2>/dev/null)
+  if [[ "$code" == "200" ]]; then
+    pass "Hasura console enabled (HTTP 200)"
+  else
+    fail "Hasura console not enabled (HTTP $code, expected 200)"
+  fi
+}
+
+# Validate docker-compose.dev.yml merges cleanly with docker-compose.yml
+check_dev_compose_syntax() {
+  if docker compose \
+      -f "$TEST_DIR/docker-compose.yml" \
+      -f "$TEST_DIR/docker-compose.dev.yml" \
+      config > /dev/null 2>&1; then
+    pass "docker-compose.dev.yml merges cleanly"
+  else
+    fail "docker-compose.dev.yml has syntax/merge errors"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Scenario: Core-only install
 # ---------------------------------------------------------------------------
@@ -447,6 +493,86 @@ run_storage_scenario() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario: Dev stack (hot reload + exposed ports)
+# ---------------------------------------------------------------------------
+
+run_dev_scenario() {
+  reset_scenario
+  echo ""
+  echo -e "${BLUE}============================================================${NC}"
+  echo -e "${BLUE}  SCENARIO: Dev stack (hot reload + exposed ports)${NC}"
+  echo -e "${BLUE}============================================================${NC}"
+
+  # --- Setup: isolated temp dir ---
+  section "Setup"
+  setup_test_dir
+
+  info "  Running install.sh (core-only, dev scenario)..."
+  (cd "$TEST_DIR" && echo -e "test-project\nn\ny" | bash install.sh > /dev/null) || {
+    fail "install.sh failed"
+    cleanup
+    return 1
+  }
+  pass "install.sh completed"
+
+  # Use dev overlay for teardown
+  COMPOSE_EXTRA_FILES=("-f" "$TEST_DIR/docker-compose.dev.yml")
+
+  # --- Verify install output ---
+  section "Install output"
+  [[ -f "$TEST_DIR/.env" ]]               && pass ".env created"               || fail ".env missing"
+  [[ -f "$TEST_DIR/docker-compose.yml" ]] && pass "docker-compose.yml created" || fail "docker-compose.yml missing"
+  [[ -f "$TEST_DIR/hasura/.env" ]]        && pass "hasura/.env created"        || fail "hasura/.env missing"
+  grep -q "^HASURA_GRAPHQL_ADMIN_SECRET=" "$TEST_DIR/hasura/.env" 2>/dev/null \
+    && pass "hasura/.env has admin secret" \
+    || fail "hasura/.env missing admin secret"
+
+  # --- Compose validation (before starting containers) ---
+  section "Compose validation"
+  check_dev_compose_syntax
+
+  # --- Start dev stack ---
+  section "Starting dev stack"
+  (cd "$TEST_DIR" && docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build -d) || true
+  echo ""
+
+  load_admin_secret
+
+  # --- Container health ---
+  section "Container health"
+  wait_for_healthy "postgres" "PostgreSQL"
+  wait_for_healthy "hasura"   "Hasura"
+  wait_for_healthy "nestjs"   "NestJS"
+
+  # --- Migrations ---
+  section "Migrations"
+  check_migrations
+
+  # --- Host port exposure ---
+  section "Host port exposure"
+  check_host_port 5432 "PostgreSQL"
+  check_nestjs_from_host
+
+  # --- Hasura dev mode ---
+  section "Hasura dev mode"
+  check_hasura_console_enabled
+
+  # --- Teardown ---
+  section "Teardown"
+  teardown
+  cleanup_test_dir
+  pass "Stack torn down, temp dir removed"
+
+  # --- Scenario summary ---
+  echo ""
+  if [[ $SCENARIO_FAIL -eq 0 ]]; then
+    echo -e "${GREEN}  ✓ SCENARIO PASSED: ${SCENARIO_PASS} checks${NC}"
+  else
+    echo -e "${RED}  ✗ SCENARIO FAILED: ${SCENARIO_PASS} passed, ${SCENARIO_FAIL} failed${NC}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -463,12 +589,15 @@ case "$SCENARIO" in
   storage)
     run_storage_scenario
     ;;
+  dev)
+    run_dev_scenario
+    ;;
   all)
     run_core_scenario
     run_storage_scenario
     ;;
   *)
-    echo "Usage: $0 [core|storage|all]"
+    echo "Usage: $0 [core|storage|dev|all]"
     exit 1
     ;;
 esac
